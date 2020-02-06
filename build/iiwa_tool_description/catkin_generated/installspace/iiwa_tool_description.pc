@@ -1,0 +1,8 @@
+prefix=/home/workcell/Desktop/iiwa_stack_ws/install
+
+Name: iiwa_tool_description
+Description: Description of iiwa_tool_description
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

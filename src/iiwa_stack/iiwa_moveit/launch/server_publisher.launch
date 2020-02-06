@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+	<group ns="iiwa">
+	  <node name="talker" pkg="iiwa_moveit" type="server_publisher.py" respawn="false" output="screen">
+	  </node>
+	</group>
+
+</launch>

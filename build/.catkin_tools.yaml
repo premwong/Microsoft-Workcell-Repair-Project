@@ -1,0 +1,6 @@
+devel_space: /home/workcell/Desktop/iiwa_stack_ws/devel
+install: false
+install_space: /home/workcell/Desktop/iiwa_stack_ws/install
+profile: default
+source_space: /home/workcell/Desktop/iiwa_stack_ws/src
+workspace: /home/workcell/Desktop/iiwa_stack_ws

@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+	<group ns="iiwa">
+	  <node name="collect_pose_server" pkg="iiwa_moveit" type="pose_service.py" respawn="false" output="screen">
+	  </node>
+	</group>
+
+</launch>
