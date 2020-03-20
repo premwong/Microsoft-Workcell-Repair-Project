@@ -1,1 +1,0 @@
-/home/workcell/Desktop/iiwa_stack_ws/devel/.private/iiwa_msgs/share/iiwa_msgs/msg/MoveToJointPositionFeedback.msg

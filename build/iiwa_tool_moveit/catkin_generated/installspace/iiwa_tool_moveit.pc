@@ -1,8 +1,0 @@
-prefix=/home/workcell/Desktop/iiwa_stack_ws/install
-
-Name: iiwa_tool_moveit
-Description: Description of iiwa_tool_moveit
-Version: 0.2.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 
