@@ -9,9 +9,9 @@
     <!-- hardware_interface to use : PositionJointInterface, EffortJointInterface, VelocityJointInterface. -->
     <arg name="hardware_interface" default="PositionJointInterface"/>
     <!-- name of the iiwa to use, useful in case of multiple robots. Every robot is gonna have its nodees/topics under a namespace with the same name. -->
-    <arg name="robot_name" default=""/>
+    <arg name="robot_name" default="iiwa"/>
     <!-- Model of the iiwa to use : iiwa7, iiwa14 -->
-    <arg name="model" default="iiwa7"/>
+    <arg name="model" default="iiwa14"/>
     
     <!-- By default, we are not in debug mode -->
     <arg name="debug" default="false" />     
@@ -19,7 +19,7 @@
     <remap from="/get_planning_scene" to="/$(arg robot_name)/get_planning_scene" /> 
     
     <!--Put in a namespace to allow many instances to run-->
-    <group>
+    <group ns="$(arg robot_name)">
         
         <!-- We do not have a robot connected, so publish fake joint states -->
         <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" output="screen">

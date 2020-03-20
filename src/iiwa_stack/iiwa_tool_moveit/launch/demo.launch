@@ -9,12 +9,12 @@
     <!-- name of the iiwa to use, useful in case of multiple robots. Every robot is gonna have its nodees/topics under a namespace with the same name. -->
     <arg name="robot_name" default="iiwa"/>
     <!-- Model of the iiwa to use : iiwa7, iiwa14 -->
-    <arg name="model" default="iiwa7"/>
+    <arg name="model" default="iiwa14"/>
     
     <!-- By default, we are not in debug mode -->
     <arg name="debug" default="false" />
     
-    <remap from="robot_description" to="/$(arg robot_name)/robot_description" /> 
+    <!-- <remap from="robot_description" to="/$(arg robot_name)/robot_description" /> -->
     <remap from="/move_group/fake_controller_joint_states" to="/$(arg robot_name)/move_group/fake_controller_joint_states" /> 
     <remap from="/get_planning_scene" to="/$(arg robot_name)/get_planning_scene" /> 
     
