@@ -3,6 +3,6 @@ moveit_setup_assistant_config:
     package: iiwa_tool_description
     relative_path: urdf/iiwa_tool.urdf
   SRDF:
-    relative_path: config/iiwa7_tool.srdf
+    relative_path: config/iiwa14_tool.srdf
   CONFIG:
     generated_timestamp: 1457651071
