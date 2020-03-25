@@ -26,5 +26,5 @@ use_stochastic_descent: true
 enable_failure_recovery: false
 max_recovery_attempts: 5
 trajectory_initialization_method: "quintic-spline"
-#trajectory_initialization_method: "fillTrajectory"
+trajectory_initialization_method: "fillTrajectory"
 

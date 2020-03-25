@@ -27,16 +27,22 @@ from pykdl_utils.kdl_parser import kdl_tree_from_urdf_model
 # Y_OFFSET = 0.0105
 # Z_OFFSET = 0.18
 
-X_OFFSET = -0.041
-Y_OFFSET = 0.016
+X_OFFSET = 0.005
+Y_OFFSET = -0.005
 Z_OFFSET = 0.18
-THETA_OFFSET = 1
+THETA_OFFSET = 0
 
 HEATSINK_Z_OFFSET = 0.3
 # A_OFFSET = 0.155
 # B_OFFSET = -0.026
 NIC_A = 0.113
 NIC_B = -0.08
+
+# NIC_A = -0.1033
+# NIC_B = -0.0733
+
+
+
 HEATSINK_A = -0.106
 HEATSINK_B = -0.04
 
@@ -124,9 +130,10 @@ def goto_nic_position(query=True, scale=1):
       print 'pose collected'
       print response
       theta_rad = response.orientation_theta
+      print theta_rad
       current_theta = math.degrees(theta_rad) + THETA_OFFSET
       coord_offset = relative_position(NIC_A, NIC_B, theta_rad + math.radians(THETA_OFFSET))
-      return goto_cartesian_state((response.position_x + X_OFFSET) + coord_offset[0], (response.position_y + Y_OFFSET) + coord_offset[1] , Z_OFFSET, theta_rad + math.radians(THETA_OFFSET), 'nic', True)
+      return goto_cartesian_state((response.position_x + X_OFFSET) + coord_offset[0], (response.position_y + Y_OFFSET) + coord_offset[1], Z_OFFSET, theta_rad + math.radians(THETA_OFFSET), 'nic', True)
     except rospy.ServiceException, e:
       print "service call failed: %s"%e
 
@@ -272,12 +279,12 @@ def print_state():
 #   return plan
 
 
-def interpolated_path_up(travel_distance):
+def extended_trajectory(travel_distance):
   cur_pose = group.get_current_pose().pose
   z_state = cur_pose.position.z
   waypoints = []
   wpose = copy.deepcopy(cur_pose)
-  wpose.position.z += 0.01
+  wpose.position.z += 0.0001
   waypoints.append(wpose)
   print waypoints
   (plan, fraction) = group.compute_cartesian_path(waypoints, 0.03, 0.0)
@@ -369,22 +376,24 @@ def extend_trajectory(plan, start_pose, travel_distance, step=0.005, time_step=0
   traj = plan.joint_trajectory.points
   cur_pose_z = start_pose.position.z 
   start_time = plan.joint_trajectory.points[-1].time_from_start
-  for i in range(0, int(travel_distance / step)):
-    point = JointTrajectoryPoint()
-    print i
-    joint_goal = inverse_kinematics([start_pose.position.x, start_pose.position.y, cur_pose_z + step], [start_pose.orientation.x, start_pose.orientation.y, start_pose.orientation.z, start_pose.orientation.w], NIC_SEED_STATE)
-    joint_list = []
-    for idx, jnt in enumerate(joint_goal):
-      joint_list.append(jnt)
-    point.positions = joint_list
-    print joint_list
-    point.velocities = [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01]
-    point.accelerations = [0,0,0,0,0,0,0]
-    time = rospy.Duration.from_sec(start_time.to_sec() + time_step)
-    start_time += rospy.Duration.from_sec(time_step)
-    point.time_from_start = time
-    traj.append(point)
-    cur_pose_z += step
+  if (direction == 'down'):
+    for i in range(0, int(abs(travel_distance) / step)):
+      point = JointTrajectoryPoint()
+      print i
+      joint_goal = inverse_kinematics([start_pose.position.x, start_pose.position.y, cur_pose_z + (numpy.sign(travel_distance) * step)], 
+        [start_pose.orientation.x, start_pose.orientation.y, start_pose.orientation.z, start_pose.orientation.w], NIC_SEED_STATE)
+      joint_list = []
+      for idx, jnt in enumerate(joint_goal):
+        joint_list.append(jnt)
+      point.positions = joint_list
+      print joint_list
+      point.velocities = [0.0, 0.01, 0.01, 0.01, 0.01, 0.01, 0.0]
+      point.accelerations = [0,0,0,0,0,0,0]
+      time = rospy.Duration.from_sec(start_time.to_sec() + (numpy.sign(travel_distance) * time_step))
+      start_time += rospy.Duration.from_sec(time_step)
+      point.time_from_start = time
+      traj.append(point)
+      cur_pose_z += step
   return plan
 
 
@@ -410,7 +419,7 @@ def main():
     #           interpolated_path_down(0.4)
     #           rospy.sleep(1)
     #           set_gripper(True)
-    goto_cartesian_state(0.01, 0.8, 0.3, 0, 'heatsink')
+    # goto_cartesian_state(0.01, 0.8, 0.3, 0, 'heatsink')
     # rospy.sleep(3)
     # interpolated_path_down(0.129)
     # rospy.sleep(1)
@@ -426,29 +435,32 @@ def main():
 
 
     #-------------------------pick up ----------------------
-    # if goto_nic_position():
-    #   set_gripper(True)
-    #   rospy.sleep(2)
-    #   if interpolated_path_down(0.06):
-    #     rospy.sleep(1)
-    #     if manually_interpolated_down():
-    #       set_gripper(False)
-    #       if manually_interpolated_up():
-    #         rospy.sleep(2)
-    #         if goto_cartesian_state(0.4, 0.3, 0.3, 270):
-    #           rospy.sleep(2)
-    #           raw_input()
-    #           #-------------------place ----------------------------
-    #           if goto_nic_position():
-    #             rospy.sleep(2)
-    #             if interpolated_path_down(0.06):
-    #               rospy.sleep(1)
-    #               if manually_interpolated_down():
-    #                 set_gripper(True)
-    #                 if manually_interpolated_up():
-    #                   rospy.sleep(1)
-    #                   if goto_cartesian_state(0.4, 0.2, 0.11, 270):
-    #                     rospy.sleep(2)
+    if goto_nic_position():
+      set_gripper(True)
+      rospy.sleep(2)
+    extended_trajectory(0.06)
+    # rospy.sleep(2)
+    # extended_trajectory(0.1, 'up')
+      # if interpolated_path_down(0.06):
+      #   rospy.sleep(1)
+      #   if manually_interpolated_down():
+      #     set_gripper(False)
+      #     if manually_interpolated_up():
+      #       rospy.sleep(2)
+      #       if goto_cartesian_state(0.4, 0.3, 0.3, 270):
+      #         rospy.sleep(2)
+      #         raw_input()
+      #         #-------------------place ----------------------------
+      #         if goto_nic_position():
+      #           rospy.sleep(2)
+      #           if interpolated_path_down(0.06):
+      #             rospy.sleep(1)
+      #             if manually_interpolated_down():
+      #               set_gripper(True)
+      #               if manually_interpolated_up():
+      #                 rospy.sleep(1)
+      #                 if goto_cartesian_state(0.4, 0.2, 0.11, 270):
+      #                   rospy.sleep(2)
     print "=============Sequence complete============="
   except rospy.ROSInterruptException:
     return
