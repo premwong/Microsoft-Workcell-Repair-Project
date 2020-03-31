@@ -56,6 +56,7 @@ MANUAL_STEP = 0.002
 
 PLANNER_ID = 'RRTConnectkConfigDefault'
 
+
 current_theta = 0
 
 class MoveGroupLeftArm(object):
@@ -95,18 +96,19 @@ class MoveGroupLeftArm(object):
     _iiwa_base_link = _iiwa_URDF.get_root()
     self.iiwa_chain = _iiwa_kdl_tree.getChain(_iiwa_base_link, 'tool_link_ee')
 
-    _forward_kin_position_kdl = PyKDL.ChainFkSolverPos_recursive(self.iiwa_chain)
+    self.forward_kin_position_kdl = PyKDL.ChainFkSolverPos_recursive(self.iiwa_chain)
     _forward_kin_velocity_kdl = PyKDL.ChainFkSolverVel_recursive(self.iiwa_chain)  
-    _inverse_kin_velocity_kdl = PyKDL.ChainIkSolverVel_pinv(self.iiwa_chain)
-    min_limits = PyKDL.JntArray(NUM_JOINTS)
-    max_limits = PyKDL.JntArray(NUM_JOINTS)
+    self.inverse_kin_velocity_kdl = PyKDL.ChainIkSolverVel_pinv(self.iiwa_chain)
+    self.min_limits = PyKDL.JntArray(NUM_JOINTS)
+    self.max_limits = PyKDL.JntArray(NUM_JOINTS)
     for idx, jnt in enumerate(MIN_JOINT_LIMITS_DEG):
-      min_limits[idx] = math.radians(jnt)
+      self.min_limits[idx] = math.radians(jnt)
     for idx, jnt in enumerate(MAX_JOINT_LIMITS_DEG):
-      max_limits[idx] = math.radians(jnt)
-    self.inverse_kin_position_kdl = PyKDL.ChainIkSolverPos_NR_JL(self.iiwa_chain, min_limits, max_limits, _forward_kin_position_kdl, _inverse_kin_velocity_kdl)
+      self.max_limits[idx] = math.radians(jnt)
+    # self.inverse_kin_position_kdl = PyKDL.ChainIkSolverPos_NR_JL(self.iiwa_chain, min_limits, max_limits, _forward_kin_position_kdl, _inverse_kin_velocity_kdl)
 
   def inverse_kinematics(self, position, orientation=None, seed=None):
+    _inverse_kin_position_kdl = PyKDL.ChainIkSolverPos_NR_JL(self.iiwa_chain, self.min_limits, self.max_limits, self.forward_kin_position_kdl, self.inverse_kin_velocity_kdl)
     ik = PyKDL.ChainIkSolverVel_pinv(self.iiwa_chain)
     pos = PyKDL.Vector(position[0], position[1], position[2])
     if orientation != None:
@@ -129,7 +131,10 @@ class MoveGroupLeftArm(object):
     else:
       goal_pose = PyKDL.Frame(pos)
     result_angles = PyKDL.JntArray(NUM_JOINTS)
-    if self.inverse_kin_position_kdl.CartToJnt(seed_array, goal_pose, result_angles) >= 0:
+    print seed_array
+    print goal_pose
+    print result_angles
+    if _inverse_kin_position_kdl.CartToJnt(seed_array, goal_pose, result_angles) >= 0:
       result = np.array(result_angles).tolist()
       return result
     else:
@@ -164,7 +169,8 @@ class MoveGroupLeftArm(object):
         print theta_rad
         current_theta = math.degrees(theta_rad) + THETA_OFFSET
         coord_offset = self.relative_position(NIC_A, NIC_B, theta_rad + math.radians(THETA_OFFSET))
-        return self.goto_cartesian_state((response.position_x + X_OFFSET) + coord_offset[0], (response.position_y + Y_OFFSET) + coord_offset[1], Z_OFFSET, theta_rad + math.radians(THETA_OFFSET), 'nic', True)
+        return self.goto_cartesian_state((response.position_x + X_OFFSET) + coord_offset[0], (response.position_y + Y_OFFSET) + coord_offset[1], 
+          Z_OFFSET, theta_rad + math.radians(THETA_OFFSET), 'nic', True)
       except rospy.ServiceException, e:
         print "service call failed: %s"%e
 
@@ -217,7 +223,7 @@ class MoveGroupLeftArm(object):
     print self.group.get_current_joint_values()
     print ""
 
-  def extended_trajectory(travel_distance):
+  def extend_trajectory(self, travel_distance):
     cur_pose = self.group.get_current_pose().pose
     z_state = cur_pose.position.z
     waypoints = []
@@ -226,7 +232,7 @@ class MoveGroupLeftArm(object):
     waypoints.append(wpose)
     print waypoints
     (plan, fraction) = self.group.compute_cartesian_path(waypoints, 0.03, 0.0)
-    extend_trajectory(plan, copy.deepcopy(wpose), travel_distance)
+    self.extend_trajectory_helper(plan, copy.deepcopy(wpose), travel_distance)
     print plan
     self.group.execute(plan, wait=True)
     return plan
@@ -242,62 +248,63 @@ class MoveGroupLeftArm(object):
       goto_cartesian_state(cur_pose.position.x, cur_pose.position.y, cur_z - MANUAL_STEP, new_theta)
       cur_z -= 0.002
       rospy.sleep(0.01)
-    return True;
+    return True
 
 
-# def remove_path_constraints():
-#   print 'Constraint removed: ' + str(upright_constraints.orientation_constraints.pop())
-#   self.group.set_path_constraints(upright_constraints)
+  def remove_path_constraints(self):
+    print 'Constraint removed: ' + str(self.upright_constraints.orientation_constraints.pop())
+    self.group.set_path_constraints(self.upright_constraints)
 
-# def init_path_constraints():
-#   upright_constraints.name = 'upright'
-#   orientation_constraint = OrientationConstraint()    # goto_cartesian_state(0.1, 0.8, 0.3, 0, 'heatsink')
-#     # rospy.sleep(2)
-#   current_pose = self.group.get_current_pose().pose
-#   planning_frame = self.group.get_planning_frame()
-#   orientation_constraint.header.frame_id = planning_frame
-#   orientation_constraint.link_name = self.group.get_end_effector_link()
-#   print 'Constraint initialized: ' + str(orientation_constraint.link_name)
-#   orientation_constraint.orientation = current_pose.orientation    
-#   orientation_constraint.absolute_x_axis_tolerance = 0.001
-#   orientation_constraint.absolute_y_axis_tolerance = 0.001
-#   orientation_constraint.absolute_z_axis_tolerance = 0.001
-#   orientation_constraint.weight = 0.01
-#   upright_constraints.orientation_constraints.append(orientation_constraint)
-#   self.group.set_path_constraints(upright_constraints)
+  def init_path_constraints(self):
+    self.upright_constraints.name = 'upright'
+    orientation_constraint = OrientationConstraint()    
+    current_pose = self.group.get_current_pose().pose
+    planning_frame = self.group.get_planning_frame()
+    orientation_constraint.header.frame_id = planning_frame
+    orientation_constraint.link_name = self.group.get_end_effector_link()
+    print 'Constraint initialized: ' + str(orientation_constraint.link_name)
+    orientation_constraint.orientation = current_pose.orientation    
+    orientation_constraint.absolute_x_axis_tolerance = 0.001
+    orientation_constraint.absolute_y_axis_tolerance = 0.001
+    orientation_constraint.absolute_z_axis_tolerance = 0.001
+    orientation_constraint.weight = 0.01
+    self.upright_constraints.orientation_constraints.append(orientation_constraint)
+    self.group.set_path_constraints(self.upright_constraints)
 
 
-# def extend_trajectory(plan, start_pose, travel_distance, step=0.005, time_step=0.004):
-#   traj = plan.joint_trajectory.points
-#   cur_pose_z = start_pose.position.z 
-#   start_time = plan.joint_trajectory.points[-1].time_from_start
-#   for i in range(0, int(abs(travel_distance) / step)):
-#     point = JointTrajectoryPoint()
-#     print i
-#     joint_goal = inverse_kinematics([start_pose.position.x, start_pose.position.y, cur_pose_z + (np.sign(travel_distance) * step)], 
-#       [start_pose.orientation.x, start_pose.orientation.y, start_pose.orientation.z, start_pose.orientation.w], NIC_SEED_STATE)
-#     joint_list = []
-#     for idx, jnt in enumerate(joint_goal):
-#       joint_list.append(jnt)
-#     point.positions = joint_list
-#     print joint_list
-#     point.velocities = [0.0, 0.01, 0.01, 0.01, 0.01, 0.01, 0.0]
-#     point.accelerations = [0,0,0,0,0,0,0]
-#     time = rospy.Duration.from_sec(start_time.to_sec() + time_step)
-#     start_time += rospy.Duration.from_sec(time_step)
-#     point.time_from_start = time
-#     traj.append(point)
-#     cur_pose_z += np.sign(travel_distance) * step
-#   return plan
+  def extend_trajectory_helper(self, plan, start_pose, travel_distance, step=0.005, time_step=0.004):
+    traj = plan.joint_trajectory.points
+    cur_pose_z = start_pose.position.z 
+    start_time = plan.joint_trajectory.points[-1].time_from_start
+    for i in range(0, int(abs(travel_distance) / step)):
+      point = JointTrajectoryPoint()
+      print i
+      joint_goal = self.inverse_kinematics([start_pose.position.x, start_pose.position.y, cur_pose_z + (np.sign(travel_distance) * step)], 
+        [start_pose.orientation.x, start_pose.orientation.y, start_pose.orientation.z, start_pose.orientation.w], NIC_SEED_STATE)
+      joint_list = []
+      for idx, jnt in enumerate(joint_goal):
+        joint_list.append(jnt)
+      point.positions = joint_list
+      print joint_list
+      point.velocities = [0.0, 0.01, 0.01, 0.01, 0.01, 0.01, 0.0]
+      point.accelerations = [0,0,0,0,0,0,0]
+      time = rospy.Duration.from_sec(start_time.to_sec() + time_step)
+      start_time += rospy.Duration.from_sec(time_step)
+      point.time_from_start = time
+      traj.append(point)
+      cur_pose_z += np.sign(travel_distance) * step
+    return plan
 
 
 def main():
   myLeftArm = MoveGroupLeftArm()
+  # myLeftArm.init_path_constraints()
   myLeftArm.print_state()
   try:
     print " Press to start sequence"
     raw_input()
-    myLeftArm.goto_cartesian_state(0.4, 0.3, 0.3, 270)
+    # myLeftArm.goto_cartesian_state(0.4, 0.3, 0.3, 270)
+    myLeftArm.extend_trajectory(-0.06)
 
   except rospy.ROSInterruptException:
     return
