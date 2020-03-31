@@ -11,4 +11,5 @@ CTestTestfile.cmake
 build/
 devel/
 logs/
+.catkin_tools/
 _deps

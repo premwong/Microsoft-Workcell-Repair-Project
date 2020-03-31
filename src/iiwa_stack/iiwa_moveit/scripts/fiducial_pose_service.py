@@ -36,7 +36,7 @@ def collect(thread_name):
 
           # Receive the data in small chunks and retransmit it
           while True:
-              data = str(connection.recv(180))
+              data = str(connection.recv(200))
               if data:
                   print("Received: " + str(data))
               else:
@@ -58,22 +58,23 @@ def handle_collect_pose(req):
     print float_buf
     cpu_pos = float_buf[0:3]
     slot_pos = float_buf[3:6]
-    middle_pos = float_buf[6:]
-    thetas = [cpu_pos[2], slot_pos[2], middle_pos[2]]
+    middle_pos = float_buf[6:9]
+
+    thetas = [float_buf[9], float_buf[10], float_buf[11]]
     new_thetas = []
     for theta in thetas:
-    	if theta > 180:
-    		new_thetas.append(theta - 360)
-    	elif theta < -180:
-    		new_thetas.append(theta + 360)
-    	else:
-    		new_thetas.append(theta)
+      if theta > 90:
+        new_thetas.append(theta - 180)
+      elif theta < -90:
+        new_thetas.append(theta + 180)
+      else:
+        new_thetas.append(theta)
     avg_theta = (new_thetas[0] + new_thetas[1] + new_thetas[2]) / 3
     resp = CollectPoseResponse()
     resp.position_x = cpu_pos[0] /1000
     resp.position_y = cpu_pos[1] /1000
 
-    resp.orientation_theta = math.radians(new_thetas[0])
+    resp.orientation_theta = math.radians(avg_theta)
     return resp
  
 def collect_pose_server(thread_name):
