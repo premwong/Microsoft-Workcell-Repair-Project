@@ -1,4 +1,10 @@
 #!/usr/bin/env python
+
+
+## Author: Nano Premvuti
+## University of Washington 
+## Department of Electrical & Computer Engineering
+
 import PyKDL
 import sys
 import copy
@@ -19,7 +25,6 @@ import numpy as np
 import math
 from urdf_parser_py.urdf import URDF
 from pykdl_utils.kdl_parser import kdl_tree_from_urdf_model
-
 
 X_OFFSET = -0.021
 Y_OFFSET = 0.0055
@@ -59,6 +64,8 @@ PLANNER_ID = 'RRTConnectkConfigDefault'
 
 current_theta = 0
 
+
+
 class MoveGroupLeftArm(object):
   def __init__(self):
     super(MoveGroupLeftArm, self).__init__()
@@ -70,7 +77,8 @@ class MoveGroupLeftArm(object):
     self.group = moveit_commander.MoveGroupCommander(group_name)
     #group.set_max_velocity_scaling_factor(0.15)
     self.group.set_max_acceleration_scaling_factor(0.1)
-    print self.group.set_planner_id(PLANNER_ID)
+    if self.group.set_planner_id(PLANNER_ID): 
+      print 'Using planner: ' + PLANNER_ID
     self.group.set_num_planning_attempts(100)
     self.group.set_planning_time(3)
     self.group.set_start_state_to_current_state()
@@ -81,12 +89,11 @@ class MoveGroupLeftArm(object):
     try:
       rospy.wait_for_service('configuration/setSmartServoLimits', 1)
     except:
-      print 'timeout'
+      print 'Service call timeout'
     try:
-      print 'trying'
       self.set_speed_limits = rospy.ServiceProxy('configuration/setSmartServoLimits', SetSmartServoJointSpeedLimits)
       response = self.set_speed_limits(0.2, 0.2, -1)
-      print 'speed limit set'
+      print 'Velocity limit set'
       print response
     except rospy.ServiceException, e:
       print "service call failed: %s"%e
@@ -108,6 +115,7 @@ class MoveGroupLeftArm(object):
     # self.inverse_kin_position_kdl = PyKDL.ChainIkSolverPos_NR_JL(self.iiwa_chain, min_limits, max_limits, _forward_kin_position_kdl, _inverse_kin_velocity_kdl)
 
   def inverse_kinematics(self, position, orientation=None, seed=None):
+    """inverse kinematic solver using PyKDL"""
     _inverse_kin_position_kdl = PyKDL.ChainIkSolverPos_NR_JL(self.iiwa_chain, self.min_limits, self.max_limits, self.forward_kin_position_kdl, self.inverse_kin_velocity_kdl)
     ik = PyKDL.ChainIkSolverVel_pinv(self.iiwa_chain)
     pos = PyKDL.Vector(position[0], position[1], position[2])
@@ -131,9 +139,6 @@ class MoveGroupLeftArm(object):
     else:
       goal_pose = PyKDL.Frame(pos)
     result_angles = PyKDL.JntArray(NUM_JOINTS)
-    print seed_array
-    print goal_pose
-    print result_angles
     if _inverse_kin_position_kdl.CartToJnt(seed_array, goal_pose, result_angles) >= 0:
       result = np.array(result_angles).tolist()
       return result
@@ -155,15 +160,14 @@ class MoveGroupLeftArm(object):
 
   def goto_nic_position(self, query=True, scale=1):
     global current_theta
-    print 'plan 1'
     print 'waiting for service...'
     rospy.wait_for_service('collect_pose')
     if (query):
       try:
-        print 'trying'
+        print 'Collecting pose...'
         collect_pose = rospy.ServiceProxy('collect_pose', CollectPose)
         response = collect_pose(1)
-        print 'pose collected'
+        print 'Pose collected.'
         print response
         theta_rad = response.orientation_theta
         print theta_rad
@@ -178,7 +182,6 @@ class MoveGroupLeftArm(object):
     joint_goal = self.group.get_current_joint_values()
     for idx, joint in enumerate(joint_vals):
       joint_goal[idx] = joint
-    print joint_goal
     plan = self.group.go(joint_goal, wait=True)
     self.group.stop()
     return plan
@@ -197,7 +200,11 @@ class MoveGroupLeftArm(object):
       else:
         quat = self.heatsink_convert_to_quaternion_orientation(math.radians(theta)).tolist()
       joint_goal = self.inverse_kinematics([x, y, z], [ quat[1], quat[2], quat[3], quat[0]], HEATSINK_SEED_STATE)
-      return self.goto_joint_state(joint_goal)
+      try:
+        return self.goto_joint_state(joint_goal)
+      except:
+        print "No IK Solution Found"
+        return None
 
 
   def set_gripper(self, state):
@@ -232,7 +239,9 @@ class MoveGroupLeftArm(object):
     waypoints.append(wpose)
     print waypoints
     (plan, fraction) = self.group.compute_cartesian_path(waypoints, 0.03, 0.0)
-    self.extend_trajectory_helper(plan, copy.deepcopy(wpose), travel_distance)
+    if self.extend_trajectory_helper(plan, copy.deepcopy(wpose), travel_distance) == None:
+      print "extend_trajectory failed"
+      return None
     print plan
     self.group.execute(plan, wait=True)
     return plan
@@ -281,6 +290,9 @@ class MoveGroupLeftArm(object):
       print i
       joint_goal = self.inverse_kinematics([start_pose.position.x, start_pose.position.y, cur_pose_z + (np.sign(travel_distance) * step)], 
         [start_pose.orientation.x, start_pose.orientation.y, start_pose.orientation.z, start_pose.orientation.w], NIC_SEED_STATE)
+      if joint_goal == None:
+        print "No IK on extend trajectory found"
+        return None
       joint_list = []
       for idx, jnt in enumerate(joint_goal):
         joint_list.append(jnt)
@@ -295,21 +307,3 @@ class MoveGroupLeftArm(object):
       cur_pose_z += np.sign(travel_distance) * step
     return plan
 
-
-def main():
-  myLeftArm = MoveGroupLeftArm()
-  # myLeftArm.init_path_constraints()
-  myLeftArm.print_state()
-  try:
-    print " Press to start sequence"
-    raw_input()
-    # myLeftArm.goto_cartesian_state(0.4, 0.3, 0.3, 270)
-    myLeftArm.extend_trajectory(-0.06)
-
-  except rospy.ROSInterruptException:
-    return
-  except KeyboardInterrupt:
-    return
-
-if __name__ == '__main__':
-  main()
