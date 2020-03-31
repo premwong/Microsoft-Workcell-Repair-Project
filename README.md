@@ -4,7 +4,7 @@ This is the repository for robot code for Microsoft-Sponsored UW ECE Capstone st
 
 [You can follow video progress here](https://www.youtube.com/channel/UCuxifdvqcA12WCPKgT2MkxQ/videos)
 
-## Authors:
+## Team:
 Wichwong Premvuti
 
 Marcus Chu
