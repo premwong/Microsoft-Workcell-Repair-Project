@@ -26,25 +26,25 @@ def collect(thread_name):
   global data
   global ready
   while True:
-      # Wait for a connection
-      print('waiting for a connection...')
-      connection, client_address = sock.accept()
-      ready = True
-      print('accepted!')
-      try:
-          print('connection from', client_address)
+    # Wait for a connection
+    print('waiting for a connection...')
+    connection, client_address = sock.accept()
+    ready = True
+    print('accepted!')
+    try:
+      print('connection from', client_address)
 
-          # Receive the data in small chunks and retransmit it
-          while True:
-              data = str(connection.recv(200))
-              if data:
-                  print("Received: " + str(data))
-              else:
-                  print("Waiting...")
-              
-      finally:
-          # Clean up the connection
-          connection.close()
+      # Receive the data in small chunks and retransmit it
+      while True:
+        data = str(connection.recv(200))
+        if data:
+          print("Received: " + str(data))
+        else:
+          print("Waiting...")
+            
+    finally:
+        # Clean up the connection
+      connection.close()
 
 def handle_collect_pose(req):
   global data

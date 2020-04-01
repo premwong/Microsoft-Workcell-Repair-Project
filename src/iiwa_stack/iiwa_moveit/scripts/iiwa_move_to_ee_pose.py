@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@Author: Nano Premvuti
+Author: Nano Premvuti @premwong
 University of Washington 2020
 Department of Electrical & Computer Engineering
 """
@@ -61,11 +61,12 @@ current_theta = 0
 
 class Component(object):
   """helper class for components"""
-  def __init__(self, component_name, component_a_offset, component_b_offset, seed_state, rotation_function, component_id=None):
+  def __init__(self, component_name, component_a_offset, component_b_offset, component_z_offset, seed_state, rotation_function, component_id=None):
     super(Component, self).__init__()
     self.component_name = component_name
     self.component_a_offset = component_a_offset
     self.component_b_offset = component_b_offset
+    self.component_z_offset = component_z_offset
     self.component_id = component_id
     self.seed_state = seed_state
     self.rotation_function = rotation_function
@@ -80,10 +81,13 @@ class Component(object):
     sin_angle = math.sin(theta)
     rotation_mat_array = np.array(self.rotation_function(sin_angle, cos_angle))
     quat = transforms3d.quaternions.mat2quat(rotation_mat_array)
-    return quat
+    return quat.tolist()
 
   def get_seed_state(self):
     return self.seed_state
+
+  def get_z_offset(self):
+    return self.component_z_offset
 
 class MoveGroupLeftArm(object):
   def __init__(self):
@@ -131,22 +135,30 @@ class MoveGroupLeftArm(object):
       self.min_limits[idx] = math.radians(jnt)
     for idx, jnt in enumerate(MAX_JOINT_LIMITS_DEG):
       self.max_limits[idx] = math.radians(jnt)
-    self.component_list = {} 
+    self.component_list = []
 
   def load_component_list(self):
     """declare and load components here"""
-    nic = Component('nic', 0.076, -0.08, NIC_SEED_STATE, NIC_ROTATION)
-    self.component_list.update([('nic', nic)])
+    nic = Component('nic', 0.076, -0.08, 0.14, NIC_SEED_STATE, NIC_ROTATION)
+    self.component_list.append(nic)
 
-  def inverse_kinematics(self, position, orientation=None, seed=None):
+    nic2 = Component('nic2', 0.043, -0.08, 0.14, NIC_SEED_STATE, NIC_ROTATION)
+    self.component_list.append(nic2)
+
+    #test component: will not work
+    nic3 = Component('nic3', 12.55, -0.08, 0.14, NIC_SEED_STATE, NIC_ROTATION)
+    self.component_list.append(nic3)
+
+  def __inverse_kinematics(self, position, orientation=None, seed=None):
     """inverse kinematic solver using PyKDL"""
     _inverse_kin_position_kdl = PyKDL.ChainIkSolverPos_NR_JL(self.iiwa_chain, self.min_limits, self.max_limits, self.forward_kin_position_kdl, self.inverse_kin_velocity_kdl)
     ik = PyKDL.ChainIkSolverVel_pinv(self.iiwa_chain)
     pos = PyKDL.Vector(position[0], position[1], position[2])
     if orientation != None:
       rot = PyKDL.Rotation()
-      rot = rot.Quaternion(orientation[0], orientation[1],
-                           orientation[2], orientation[3])
+      #PyKDL uses w, x, y, z instead of x, y, z, w
+      rot = rot.Quaternion(orientation[1], orientation[2],
+                           orientation[3], orientation[0])
     seed_array = PyKDL.JntArray(NUM_JOINTS)
     if seed != None:
       seed_array.resize(len(seed))
@@ -162,33 +174,26 @@ class MoveGroupLeftArm(object):
       goal_pose = PyKDL.Frame(pos)
     result_angles = PyKDL.JntArray(NUM_JOINTS)
     if _inverse_kin_position_kdl.CartToJnt(seed_array, goal_pose, result_angles) >= 0:
-      result = np.array(result_angles).tolist()
+      result = np.array(result_angles)
       return result
     else:
       print 'No IK Solution Found'
       return None
 
-  def check_ik_validity(self, position, orientation): #TODO
+  def check_ik_validity(self, server_position, server_orientation): 
     """checks server pose for IK validity for all components"""
+    found_all = True
     for component in self.component_list:
-      component_pose = component.get_relative_position()
-      if self.inverse_kinematics(position, orientation, self.component_seeds[component]) == None:
-        return False
-    return True
+      component_position = component.get_relative_position(server_orientation)
+      component_z_offset = component.get_z_offset()
+      component_quaternion = component.convert_theta_to_quaternion(server_orientation)
+      if self.__inverse_kinematics([server_position[0] + component_position[0] + X_OFFSET, server_position[1] + component_position[1] + Y_OFFSET, component_z_offset],
+       component_quaternion, component.get_seed_state()) == None:
+        print 'No IK solution found for: %s' % component.component_name
+        found_all = False
+    return found_all
 
-  def relative_position(self, a, b, theta):
-    x = (math.cos(theta) * a) + (-1 * math.sin(theta) * b)
-    y = (math.sin(theta) * a) + (math.cos(theta) * b)
-    return x, y
-
-  def nic_convert_to_quaternion_orientation(self, theta):
-    cos_angle = math.cos(theta)
-    sin_angle = math.sin(theta)
-    rotation_mat = np.array([[sin_angle, -1 * cos_angle, 0], [-1 * cos_angle, -1 * sin_angle, 0], [0, 0, -1]])
-    quat = transforms3d.quaternions.mat2quat(rotation_mat)
-    return quat
-
-  def goto_nic_position(self, query=True, scale=1):
+  def goto_component_position(self, component_name, query=True, scale=1):
     global current_theta
     print 'waiting for service...'
     rospy.wait_for_service('collect_pose')
@@ -202,10 +207,12 @@ class MoveGroupLeftArm(object):
         print theta_rad
         current_theta = math.degrees(theta_rad) + THETA_OFFSET
         current_theta = math.degrees(3)
-        coord_offset = self.component_list['nic'].get_relative_position(current_theta)
-        quaternion = self.component_list['nic'].convert_theta_to_quaternion(current_theta).tolist()
-        return self.goto_goal_state(response.position_x + X_OFFSET + coord_offset[0], response.position_y + 0.7 + Y_OFFSET + coord_offset[1], Z_OFFSET, 
-          quaternion, self.component_list['nic'].get_seed_state())
+        coord_offset = self.component_list[component_name].get_relative_position(current_theta)
+        goal_quaternion = self.component_list[component_name].convert_theta_to_quaternion(current_theta)
+        goal_x = response.position_x + X_OFFSET + coord_offset[0]
+        goal_y = response.position_y + Y_OFFSET + coord_offset[1]
+        return self.goto_goal_state(goal_x, goal_y, Z_OFFSET, 
+          goal_quaternion, self.component_list[component_name].get_seed_state())
       except rospy.ServiceException, e:
         print "service call failed: %s"%e
 
@@ -218,24 +225,24 @@ class MoveGroupLeftArm(object):
     return plan
 
   def goto_goal_state(self, x, y, z, quat, seed_state, radians=False):
-    joint_goal = self.inverse_kinematics([x, y, z], [quat[1], quat[2], quat[3], quat[0]], seed_state)
+    joint_goal = self.__inverse_kinematics([x, y, z], quat, seed_state)
     return self.goto_joint_state(joint_goal)
 
   #For testing only. Do not use on final version
   def goto_cartesian_state(self, x, y, z, theta, type='nic', radians=False):
     if type == 'nic':
       if radians:
-        quat = self.nic_convert_to_quaternion_orientation(theta).tolist()
+        quat = self.nic_convert_to_quaternion_orientation(theta)
       else:
-        quat = self.nic_convert_to_quaternion_orientation(math.radians(theta)).tolist()
-      joint_goal = self.inverse_kinematics([x, y, z], [quat[1], quat[2], quat[3], quat[0]], NIC_SEED_STATE)
+        quat = self.nic_convert_to_quaternion_orientation(math.radians(theta))
+      joint_goal = self.__inverse_kinematics([x, y, z], quat, NIC_SEED_STATE)
       return self.goto_joint_state(joint_goal)
     elif type == 'heatsink':
       if radians:
-        quat = self.heatsink_convert_to_quaternion_orientation(theta).tolist()
+        quat = self.heatsink_convert_to_quaternion_orientation(theta)
       else:
-        quat = self.heatsink_convert_to_quaternion_orientation(math.radians(theta)).tolist()
-      joint_goal = self.inverse_kinematics([x, y, z], [quat[1], quat[2], quat[3], quat[0]], HEATSINK_SEED_STATE)
+        quat = self.heatsink_convert_to_quaternion_orientation(math.radians(theta))
+      joint_goal = self.__inverse_kinematics([x, y, z], quat, HEATSINK_SEED_STATE)
       try:
         return self.goto_joint_state(joint_goal)
       except:
@@ -274,7 +281,7 @@ class MoveGroupLeftArm(object):
     waypoints.append(wpose)
     print waypoints
     (plan, fraction) = self.group.compute_cartesian_path(waypoints, 0.03, 0.0)
-    if self.extend_trajectory_helper(plan, copy.deepcopy(wpose), travel_distance) == None:
+    if self.__extend_trajectory_helper(plan, copy.deepcopy(wpose), travel_distance) == None:
       print "extend_trajectory failed"
       return None
     print plan
@@ -315,14 +322,14 @@ class MoveGroupLeftArm(object):
     self.group.set_path_constraints(self.upright_constraints)
 
 
-  def extend_trajectory_helper(self, plan, start_pose, travel_distance, step=0.005, time_step=0.004):
+  def __extend_trajectory_helper(self, plan, start_pose, travel_distance, step=0.005, time_step=0.004):
     traj = plan.joint_trajectory.points
     cur_pose_z = start_pose.position.z 
     start_time = plan.joint_trajectory.points[-1].time_from_start
     for i in range(0, int(abs(travel_distance) / step)):
       point = JointTrajectoryPoint()
       print i
-      joint_goal = self.inverse_kinematics([start_pose.position.x, start_pose.position.y, cur_pose_z + (np.sign(travel_distance) * step)], 
+      joint_goal = self.__inverse_kinematics([start_pose.position.x, start_pose.position.y, cur_pose_z + (np.sign(travel_distance) * step)], 
         [start_pose.orientation.x, start_pose.orientation.y, start_pose.orientation.z, start_pose.orientation.w], NIC_SEED_STATE)
       if joint_goal == None:
         print "No IK on extend trajectory found"
