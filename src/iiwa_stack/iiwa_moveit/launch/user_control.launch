@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+	<group ns="iiwa">
+	  <node name="user_control" pkg="iiwa_moveit" type="user_control.py" respawn="false" output="screen">
+	  </node>
+	</group>
+
+</launch>

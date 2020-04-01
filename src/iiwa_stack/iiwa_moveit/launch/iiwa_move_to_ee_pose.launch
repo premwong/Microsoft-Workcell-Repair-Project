@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <launch>
 	<group ns="iiwa">
-	  <node name="move_group_python_interface_tutorial" pkg="iiwa_moveit" type="iiwa_move_to_ee_pose.py" respawn="false" output="screen">
+	  <node name="iiwa_move_to_ee_pose" pkg="iiwa_moveit" type="iiwa_move_to_ee_pose.py" respawn="false" output="screen">
 	  </node>
 	</group>
 
