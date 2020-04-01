@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-@Author: Nano Premvuti
+Author: Nano Premvuti @premwong
 University of Washington 2020
 Department of Electrical & Computer Engineering
 """
@@ -56,7 +56,8 @@ def main():
 		server = ItemState(1, 'tray')
 		myLeftArm = MoveGroupLeftArm()
 		myLeftArm.load_component_list()
-		myLeftArm.goto_nic_position()
+		myLeftArm.check_ik_validity([0, 0.6], 0)
+		# myLeftArm.goto_component_position('nic')
 	except rospy.ROSInterruptException:
 	  return
 	except KeyboardInterrupt:
