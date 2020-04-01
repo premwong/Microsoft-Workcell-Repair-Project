@@ -1,21 +1,26 @@
 #!/usr/bin/env python
 
+
+##Author: Nano Premvuti
+## University of Washington 
+## Department of Electrical & Computer Engineering
+
 import sys
 import rospy
 from iiwa_move_to_ee_pose import MoveGroupLeftArm
 
-class ServerState(object):
-	def __init__(self, server_id, type='server'):
-		super(ServerState, self).__init__()
-		if type == 'server':
-			self._server_id = server_id
-			self._heatsink1 = True
-			self._heatsink2 = True
-			self._nic = True
-			self._hdd1 = True
-			self._hdd2 = True
-			self._dimm1 = True
-			self._dimm2 = True
+class ItemState(object):
+	def __init__(self, item_id, item_type):
+		super(ItemState, self).__init__()
+		self._item_id = item_id
+		self._item_type = item_type
+		self._heatsink1 = True
+		self._heatsink2 = True
+		self._nic = True
+		self._hdd1 = True
+		self._hdd2 = True
+		self._dimm1 = True
+		self._dimm2 = True
 
 
 	def get_parts_list(self):
@@ -23,7 +28,7 @@ class ServerState(object):
 
 
 
-def replace_nic(server, move_group):
+def replace_nic(move_group, server_item, tray_item):
 	move_group.print_state()
 	try:
 	  print " Press to start sequence"
@@ -31,18 +36,29 @@ def replace_nic(server, move_group):
 	  move_group.goto_cartesian_state(0.4, 0.3, 0.3, 270)
 	  rospy.sleep(1)
 	  move_group.extend_trajectory(-0.06)
+	  move_group._nic = False
 	except rospy.ROSInterruptException:
 	  return
 	except KeyboardInterrupt:
 	  return
 
+def replace_heatsink(server, move_group):
+	try:
+		print "Press to start heatsink sequence"
+		raw_input()
+		move_group.goto_cartesian_state(0.1, 0.75, 0.2, 0, 'heatsink')
+	except rospy.ROSInterruptException:
+		return
+	except KeyboardInterrupt:
+		return
 
 def main():
 	try:
-		server = ServerState(1)
-		print server.get_parts_list()
+		server = ItemState(1, 'tray')
 		myLeftArm = MoveGroupLeftArm()
-		replace_nic(server, myLeftArm)
+		myLeftArm.load_component_list()
+		# myLeftArm.goto_nic_position()
+		myLeftArm.goto_cartesian_state(0.2, 0.6, 0.2, 270)
 
 
 	except rospy.ROSInterruptException:

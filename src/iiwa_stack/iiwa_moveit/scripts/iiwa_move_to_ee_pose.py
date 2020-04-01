@@ -2,8 +2,9 @@
 
 
 ## Author: Nano Premvuti
-## University of Washington 
+## University of Washington 2020
 ## Department of Electrical & Computer Engineering
+## github.com/premwong
 
 import PyKDL
 import sys
@@ -56,14 +57,41 @@ HEATSINK_SEED_STATE = [-0.7379921078681946, -0.9803051352500916, -0.823027253150
 #NIC card rotation matrix: [[sin_angle, -1 * cos_angle, 0], [-1 * cos_angle, -1 * sin_angle, 0], [0, 0, -1]]
 #Heat sink rotation matrix: 
 HEATSINK_ROTATION = [[1, 0, 0], [0, 0, 1], [0, -1, 0]]
-
 MANUAL_STEP = 0.002
-
 PLANNER_ID = 'RRTConnectkConfigDefault'
 
 
 current_theta = 0
 
+NIC_ROTATION = lambda sin_angle, cos_angle: [[sin_angle, -1 * cos_angle, 0], [-1 * cos_angle, -1 * sin_angle, 0], [0, 0, -1]]
+HEATSINK_ROTATION = lambda sin_angle, cos_angle: [[1, 0, 0], [0, 0, 1], [0, -1, 0]]
+
+
+
+class Component(object):
+  """helper class for components"""
+  def __init__(self, component_name, component_a_offset, component_b_offset, seed_state, rotation_lambda, component_id=None):
+    super(Component, self).__init__()
+    self.component_name = component_name
+    self.component_a_offset = component_a_offset
+    self.component_b_offset = component_b_offset
+    self.component_id = component_id
+    self.seed_state = seed_state
+
+  def get_relative_position(self, theta):
+    x = (math.cos(theta) * self.component_a_offset) + (-1 * math.sin(theta) * self.component_b_offset)
+    y = (math.sin(theta) * self.component_a_offset) + (math.cos(theta) * self.component_b_offset)
+    return x, y
+
+  def convert_theta_to_quaternion(self, theta):
+    cos_angle = math.cos(theta)
+    sin_angle = math.sin(theta)
+    rotation_mat_array = np.array(nic_rotation(sin_angle, cos_angle))
+    quat = transforms3d.quaternions.mat2quat(rotation_mat_array)
+    return quat
+
+  def get_seed_state(self):
+    return self.seed_state
 
 
 class MoveGroupLeftArm(object):
@@ -98,11 +126,9 @@ class MoveGroupLeftArm(object):
     except rospy.ServiceException, e:
       print "service call failed: %s"%e
     _iiwa_URDF = URDF.from_parameter_server(key='robot_description')
-
     _iiwa_kdl_tree = kdl_tree_from_urdf_model(_iiwa_URDF)
     _iiwa_base_link = _iiwa_URDF.get_root()
     self.iiwa_chain = _iiwa_kdl_tree.getChain(_iiwa_base_link, 'tool_link_ee')
-
     self.forward_kin_position_kdl = PyKDL.ChainFkSolverPos_recursive(self.iiwa_chain)
     _forward_kin_velocity_kdl = PyKDL.ChainFkSolverVel_recursive(self.iiwa_chain)  
     self.inverse_kin_velocity_kdl = PyKDL.ChainIkSolverVel_pinv(self.iiwa_chain)
@@ -112,7 +138,13 @@ class MoveGroupLeftArm(object):
       self.min_limits[idx] = math.radians(jnt)
     for idx, jnt in enumerate(MAX_JOINT_LIMITS_DEG):
       self.max_limits[idx] = math.radians(jnt)
-    # self.inverse_kin_position_kdl = PyKDL.ChainIkSolverPos_NR_JL(self.iiwa_chain, min_limits, max_limits, _forward_kin_position_kdl, _inverse_kin_velocity_kdl)
+    self.component_list = {} #TODO: add rest of compnents
+
+  def load_component_list(self):
+    nic = Component('nic', 0.076, -0.08, NIC_SEED_STATE)
+    self.component_list.update([('nic', nic)])
+    # heatsink1 = Component('heatsink1', -0.106, -0.04, HEATSINK_SEED_STATE)
+    # self.component_list.append(heatsink1)
 
   def inverse_kinematics(self, position, orientation=None, seed=None):
     """inverse kinematic solver using PyKDL"""
@@ -123,7 +155,6 @@ class MoveGroupLeftArm(object):
       rot = PyKDL.Rotation()
       rot = rot.Quaternion(orientation[0], orientation[1],
                            orientation[2], orientation[3])
-    # Populate seed with current angles if not provided
     seed_array = PyKDL.JntArray(NUM_JOINTS)
     if seed != None:
       seed_array.resize(len(seed))
@@ -133,7 +164,6 @@ class MoveGroupLeftArm(object):
       joint_vals = self.group.get_current_joint_values()
       for idx, jnt in enumerate(joint_vals):
         seed_array[idx] = joint_vals[idx]
-    # Make IK Call
     if orientation:
       goal_pose = PyKDL.Frame(rot, pos)
     else:
@@ -145,6 +175,15 @@ class MoveGroupLeftArm(object):
     else:
       print 'No IK Solution Found'
       return None
+
+  #TODO
+  def check_ik_validity(self, position, orientation):
+    """checks server pose for IK validity for all components"""
+    for component in self.component_list:
+      component_pose = component.get_relative_position()
+      if self.inverse_kinematics(position, orientation, self.component_seeds[component]) == None:
+        return False
+    return True
 
   def relative_position(self, a, b, theta):
     x = (math.cos(theta) * a) + (-1 * math.sin(theta) * b)
@@ -164,17 +203,20 @@ class MoveGroupLeftArm(object):
     rospy.wait_for_service('collect_pose')
     if (query):
       try:
-        print 'Collecting pose...'
         collect_pose = rospy.ServiceProxy('collect_pose', CollectPose)
-        response = collect_pose(1)
+        response = collect_pose(1) 
         print 'Pose collected.'
         print response
         theta_rad = response.orientation_theta
         print theta_rad
         current_theta = math.degrees(theta_rad) + THETA_OFFSET
-        coord_offset = self.relative_position(NIC_A, NIC_B, theta_rad + math.radians(THETA_OFFSET))
-        return self.goto_cartesian_state((response.position_x + X_OFFSET) + coord_offset[0], (response.position_y + Y_OFFSET) + coord_offset[1], 
-          Z_OFFSET, theta_rad + math.radians(THETA_OFFSET), 'nic', True)
+        current_theta = math.degrees(3)
+        coord_offset = self.component_list['nic'].get_relative_position(current_theta)
+        quaternion = self.component_list['nic'].convert_theta_to_quaternion(current_theta).tolist()
+        return self.goto_goal_state(0.0 + X_OFFSET + coord_offset[0], 0.7 + Y_OFFSET + coord_offset[1], Z_OFFSET, 
+          quaternion, self.component_list['nic'].get_seed_state())
+        # return self.goto_cartesian_state((response.position_x + X_OFFSET) + coord_offset[0], (response.position_y + Y_OFFSET) + coord_offset[1], 
+        #   Z_OFFSET, theta_rad + math.radians(THETA_OFFSET), 'nic', True)
       except rospy.ServiceException, e:
         print "service call failed: %s"%e
 
@@ -186,25 +228,31 @@ class MoveGroupLeftArm(object):
     self.group.stop()
     return plan
 
+  def goto_goal_state(self, x, y, z, quat, seed_state, radians=False):
+    joint_goal = self.inverse_kinematics([x, y, z], [quat[1], quat[2], quat[3], quat[0]], seed_state)
+    return self.goto_joint_state(joint_goal)
+
+  #For testing only. Do not use on final version
   def goto_cartesian_state(self, x, y, z, theta, type='nic', radians=False):
     if type == 'nic':
       if radians:
         quat = self.nic_convert_to_quaternion_orientation(theta).tolist()
       else:
         quat = self.nic_convert_to_quaternion_orientation(math.radians(theta)).tolist()
-      joint_goal = self.inverse_kinematics([x, y, z], [ quat[1], quat[2], quat[3], quat[0]], NIC_SEED_STATE)
+      joint_goal = self.inverse_kinematics([x, y, z], [quat[1], quat[2], quat[3], quat[0]], NIC_SEED_STATE)
       return self.goto_joint_state(joint_goal)
     elif type == 'heatsink':
       if radians:
         quat = self.heatsink_convert_to_quaternion_orientation(theta).tolist()
       else:
         quat = self.heatsink_convert_to_quaternion_orientation(math.radians(theta)).tolist()
-      joint_goal = self.inverse_kinematics([x, y, z], [ quat[1], quat[2], quat[3], quat[0]], HEATSINK_SEED_STATE)
+      joint_goal = self.inverse_kinematics([x, y, z], [quat[1], quat[2], quat[3], quat[0]], HEATSINK_SEED_STATE)
       try:
         return self.goto_joint_state(joint_goal)
       except:
         print "No IK Solution Found"
         return None
+
 
 
   def set_gripper(self, state):
@@ -258,7 +306,6 @@ class MoveGroupLeftArm(object):
       cur_z -= 0.002
       rospy.sleep(0.01)
     return True
-
 
   def remove_path_constraints(self):
     print 'Constraint removed: ' + str(self.upright_constraints.orientation_constraints.pop())
