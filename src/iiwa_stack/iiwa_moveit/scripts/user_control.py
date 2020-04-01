@@ -1,15 +1,17 @@
 #!/usr/bin/env python
 
-
-##Author: Nano Premvuti
-## University of Washington 
-## Department of Electrical & Computer Engineering
+"""
+@Author: Nano Premvuti
+University of Washington 2020
+Department of Electrical & Computer Engineering
+"""
 
 import sys
 import rospy
 from iiwa_move_to_ee_pose import MoveGroupLeftArm
 
 class ItemState(object):
+	"""item that holds components eg. server, tray, etc"""
 	def __init__(self, item_id, item_type):
 		super(ItemState, self).__init__()
 		self._item_id = item_id
@@ -22,11 +24,8 @@ class ItemState(object):
 		self._dimm1 = True
 		self._dimm2 = True
 
-
 	def get_parts_list(self):
 		return self.__dict__
-
-
 
 def replace_nic(move_group, server_item, tray_item):
 	move_group.print_state()
@@ -57,10 +56,7 @@ def main():
 		server = ItemState(1, 'tray')
 		myLeftArm = MoveGroupLeftArm()
 		myLeftArm.load_component_list()
-		# myLeftArm.goto_nic_position()
-		myLeftArm.goto_cartesian_state(0.2, 0.6, 0.2, 270)
-
-
+		myLeftArm.goto_nic_position()
 	except rospy.ROSInterruptException:
 	  return
 	except KeyboardInterrupt:
@@ -72,7 +68,7 @@ if __name__ == '__main__':
 
 
 
-
+#Example control flow:
 # welcome to the server repair workcell
 # starting etc...
 # waiting for server mover .... (press ENTER to override)

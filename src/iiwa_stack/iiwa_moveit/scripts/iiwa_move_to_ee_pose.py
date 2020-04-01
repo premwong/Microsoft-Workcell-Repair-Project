@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
-
-## Author: Nano Premvuti
-## University of Washington 2020
-## Department of Electrical & Computer Engineering
-## github.com/premwong
+"""
+@Author: Nano Premvuti
+University of Washington 2020
+Department of Electrical & Computer Engineering
+"""
 
 import PyKDL
 import sys
@@ -33,50 +33,42 @@ Z_OFFSET = 0.14
 THETA_OFFSET = 1
 
 HEATSINK_Z_OFFSET = 0.3
-# A_OFFSET = 0.155
-# B_OFFSET = -0.026
 NIC_A = 0.076
 NIC_B = -0.08
 
 HEATSINK_A = -0.106
 HEATSINK_B = -0.04
 
-DIP_LENGTH = 0.085
 RATE_LONG = 0.4
 NUM_JOINTS = 7
 MIN_JOINT_LIMITS_DEG = [-169, -119, -169, -119, -169, -119, -174]
 MAX_JOINT_LIMITS_DEG = [169, 119, 169, 119, 169, 119, 174]
 NIC_SEED_STATE = [1.987323522567749, 1.4358184337615967, -1.9114866256713867, -1.036642074584961, 1.578827142715454, 1.9280040264129639, -1.9716582298278809]
 HDD_SEED_STATE = [0.4520516097545624, 0.9477099180221558, -2.3023149967193604, 2.0533716678619385, 2.569415330886841, -0.9975131750106812, 1.196797490119934]
+#TODO: find / decide seed state to use
 # HEATSINK_SEED_STATE = [2.3536217212677, 1.9468990564346313, -1.464873194694519, -1.863680362701416, 0.37379294633865356, -1.1138713359832764, 0.020486973226070404]
 #HEATSINK_SEED_STATE = [0.6797158718109131, 1.03727126121521, 0.2674739360809326, -1.6521695852279663, 1.8096520900726318, 1.2138895988464355, 1.9531116485595703] #march 14
 # HEATSINK_SEED_STATE = [-1.1050864458084106, -1.9127799272537231, 1.4396296739578247, -1.8199113607406616, 0.30834999680519104, -1.5842403173446655, 0.20372463762760162]
 HEATSINK_SEED_STATE = [-0.7379921078681946, -0.9803051352500916, -0.8230272531509399, 1.9625877141952515, 0.2715606093406677, 1.0199774503707886, 2.101893186569214]
 
-
-#NIC card rotation matrix: [[sin_angle, -1 * cos_angle, 0], [-1 * cos_angle, -1 * sin_angle, 0], [0, 0, -1]]
-#Heat sink rotation matrix: 
 HEATSINK_ROTATION = [[1, 0, 0], [0, 0, 1], [0, -1, 0]]
 MANUAL_STEP = 0.002
 PLANNER_ID = 'RRTConnectkConfigDefault'
-
-
-current_theta = 0
-
 NIC_ROTATION = lambda sin_angle, cos_angle: [[sin_angle, -1 * cos_angle, 0], [-1 * cos_angle, -1 * sin_angle, 0], [0, 0, -1]]
 HEATSINK_ROTATION = lambda sin_angle, cos_angle: [[1, 0, 0], [0, 0, 1], [0, -1, 0]]
-
-
+#TODO: calculate HDD rotation 
+current_theta = 0
 
 class Component(object):
   """helper class for components"""
-  def __init__(self, component_name, component_a_offset, component_b_offset, seed_state, rotation_lambda, component_id=None):
+  def __init__(self, component_name, component_a_offset, component_b_offset, seed_state, rotation_function, component_id=None):
     super(Component, self).__init__()
     self.component_name = component_name
     self.component_a_offset = component_a_offset
     self.component_b_offset = component_b_offset
     self.component_id = component_id
     self.seed_state = seed_state
+    self.rotation_function = rotation_function
 
   def get_relative_position(self, theta):
     x = (math.cos(theta) * self.component_a_offset) + (-1 * math.sin(theta) * self.component_b_offset)
@@ -86,16 +78,16 @@ class Component(object):
   def convert_theta_to_quaternion(self, theta):
     cos_angle = math.cos(theta)
     sin_angle = math.sin(theta)
-    rotation_mat_array = np.array(nic_rotation(sin_angle, cos_angle))
+    rotation_mat_array = np.array(self.rotation_function(sin_angle, cos_angle))
     quat = transforms3d.quaternions.mat2quat(rotation_mat_array)
     return quat
 
   def get_seed_state(self):
     return self.seed_state
 
-
 class MoveGroupLeftArm(object):
   def __init__(self):
+    #----------------control init begin-----------------------------------------------
     super(MoveGroupLeftArm, self).__init__()
     moveit_commander.roscpp_initialize(sys.argv)
     rospy.init_node('iiwa_move_to_ee_pose', anonymous=True)
@@ -125,6 +117,7 @@ class MoveGroupLeftArm(object):
       print response
     except rospy.ServiceException, e:
       print "service call failed: %s"%e
+    #----------------kinematics init begin---------------------------------------------
     _iiwa_URDF = URDF.from_parameter_server(key='robot_description')
     _iiwa_kdl_tree = kdl_tree_from_urdf_model(_iiwa_URDF)
     _iiwa_base_link = _iiwa_URDF.get_root()
@@ -138,13 +131,12 @@ class MoveGroupLeftArm(object):
       self.min_limits[idx] = math.radians(jnt)
     for idx, jnt in enumerate(MAX_JOINT_LIMITS_DEG):
       self.max_limits[idx] = math.radians(jnt)
-    self.component_list = {} #TODO: add rest of compnents
+    self.component_list = {} 
 
   def load_component_list(self):
-    nic = Component('nic', 0.076, -0.08, NIC_SEED_STATE)
+    """declare and load components here"""
+    nic = Component('nic', 0.076, -0.08, NIC_SEED_STATE, NIC_ROTATION)
     self.component_list.update([('nic', nic)])
-    # heatsink1 = Component('heatsink1', -0.106, -0.04, HEATSINK_SEED_STATE)
-    # self.component_list.append(heatsink1)
 
   def inverse_kinematics(self, position, orientation=None, seed=None):
     """inverse kinematic solver using PyKDL"""
@@ -176,8 +168,7 @@ class MoveGroupLeftArm(object):
       print 'No IK Solution Found'
       return None
 
-  #TODO
-  def check_ik_validity(self, position, orientation):
+  def check_ik_validity(self, position, orientation): #TODO
     """checks server pose for IK validity for all components"""
     for component in self.component_list:
       component_pose = component.get_relative_position()
@@ -213,10 +204,8 @@ class MoveGroupLeftArm(object):
         current_theta = math.degrees(3)
         coord_offset = self.component_list['nic'].get_relative_position(current_theta)
         quaternion = self.component_list['nic'].convert_theta_to_quaternion(current_theta).tolist()
-        return self.goto_goal_state(0.0 + X_OFFSET + coord_offset[0], 0.7 + Y_OFFSET + coord_offset[1], Z_OFFSET, 
+        return self.goto_goal_state(response.position_x + X_OFFSET + coord_offset[0], response.position_y + 0.7 + Y_OFFSET + coord_offset[1], Z_OFFSET, 
           quaternion, self.component_list['nic'].get_seed_state())
-        # return self.goto_cartesian_state((response.position_x + X_OFFSET) + coord_offset[0], (response.position_y + Y_OFFSET) + coord_offset[1], 
-        #   Z_OFFSET, theta_rad + math.radians(THETA_OFFSET), 'nic', True)
       except rospy.ServiceException, e:
         print "service call failed: %s"%e
 
@@ -252,8 +241,6 @@ class MoveGroupLeftArm(object):
       except:
         print "No IK Solution Found"
         return None
-
-
 
   def set_gripper(self, state):
     rospy.sleep(0.5)
