@@ -1,8 +1,0 @@
-<?xml version="1.0"?>
-<launch>
-	<group ns="iiwa">
-	  <node name="iiwa_move_to_ee_pose" pkg="iiwa_moveit" type="iiwa_move_to_ee_pose.py" respawn="false" output="screen">
-	  </node>
-	</group>
-
-</launch>
