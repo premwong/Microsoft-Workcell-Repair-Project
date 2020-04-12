@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+	<group ns="iiwa">
+	  <node name="workcell_iiwa_control" pkg="iiwa_moveit" type="workcell_iiwa_control.py" respawn="false" output="screen">
+	  </node>
+	</group>
+
+</launch>

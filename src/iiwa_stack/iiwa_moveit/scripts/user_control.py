@@ -8,7 +8,7 @@ Department of Electrical & Computer Engineering
 
 import sys
 import rospy
-from iiwa_move_to_ee_pose import MoveGroupLeftArm
+from workcell_iiwa_control import MoveGroupLeftArm
 
 class ItemState(object):
 	"""item that holds components eg. server, tray, etc"""
@@ -45,7 +45,7 @@ def replace_heatsink(server, move_group):
 	try:
 		print "Press to start heatsink sequence"
 		raw_input()
-		move_group.goto_cartesian_state(0.1, 0.75, 0.2, 0, 'heatsink')
+		move_group.goto_cartesian_state(0.1, 0.7, 0.2, 0, 'heatsink')
 	except rospy.ROSInterruptException:
 		return
 	except KeyboardInterrupt:
@@ -56,7 +56,10 @@ def main():
 		server = ItemState(1, 'tray')
 		myLeftArm = MoveGroupLeftArm()
 		myLeftArm.load_component_list()
-		myLeftArm.check_ik_validity([0, 0.6], 0)
+		# myLeftArm.load_trajectory()
+		# myLeftArm.goto_cartesian_state(0.1, 0.7, 0.2, 0)
+		myLeftArm.goto_cartesian_state_save(-0.2, 0.7, 0.3, 45, 'plan6')
+		# myLeftArm.check_ik_validity([0, 0.6], 0)
 		# myLeftArm.goto_component_position('nic')
 	except rospy.ROSInterruptException:
 	  return

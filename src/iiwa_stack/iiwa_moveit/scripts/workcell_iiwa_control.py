@@ -4,8 +4,11 @@
 Author: Nano Premvuti @premwong
 University of Washington 2020
 Department of Electrical & Computer Engineering
-"""
 
+This is the control module for the left workcell iiwa arm.
+"""
+import yaml
+import os
 import PyKDL
 import sys
 import copy
@@ -31,14 +34,11 @@ X_OFFSET = -0.021
 Y_OFFSET = 0.0055
 Z_OFFSET = 0.14
 THETA_OFFSET = 1
-
 HEATSINK_Z_OFFSET = 0.3
 NIC_A = 0.076
 NIC_B = -0.08
-
 HEATSINK_A = -0.106
 HEATSINK_B = -0.04
-
 RATE_LONG = 0.4
 NUM_JOINTS = 7
 MIN_JOINT_LIMITS_DEG = [-169, -119, -169, -119, -169, -119, -174]
@@ -50,11 +50,13 @@ HDD_SEED_STATE = [0.4520516097545624, 0.9477099180221558, -2.3023149967193604, 2
 #HEATSINK_SEED_STATE = [0.6797158718109131, 1.03727126121521, 0.2674739360809326, -1.6521695852279663, 1.8096520900726318, 1.2138895988464355, 1.9531116485595703] #march 14
 # HEATSINK_SEED_STATE = [-1.1050864458084106, -1.9127799272537231, 1.4396296739578247, -1.8199113607406616, 0.30834999680519104, -1.5842403173446655, 0.20372463762760162]
 HEATSINK_SEED_STATE = [-0.7379921078681946, -0.9803051352500916, -0.8230272531509399, 1.9625877141952515, 0.2715606093406677, 1.0199774503707886, 2.101893186569214]
-
 HEATSINK_ROTATION = [[1, 0, 0], [0, 0, 1], [0, -1, 0]]
 MANUAL_STEP = 0.002
 PLANNER_ID = 'RRTConnectkConfigDefault'
 NIC_ROTATION = lambda sin_angle, cos_angle: [[sin_angle, -1 * cos_angle, 0], [-1 * cos_angle, -1 * sin_angle, 0], [0, 0, -1]]
+
+HDD_TRANSFORM = np.array([[1, 0, 0], [0, (math.sqrt(3)/2), -0.5], [0, 0.5, math.sqrt(3)/2]])
+
 HEATSINK_ROTATION = lambda sin_angle, cos_angle: [[1, 0, 0], [0, 0, 1], [0, -1, 0]]
 #TODO: calculate HDD rotation 
 current_theta = 0
@@ -80,6 +82,9 @@ class Component(object):
     cos_angle = math.cos(theta)
     sin_angle = math.sin(theta)
     rotation_mat_array = np.array(self.rotation_function(sin_angle, cos_angle))
+    # rotation_mat_array = rotation_mat_array.dot(np.array([[1, 0, 0], [0, (math.sqrt(3)/2), -0.5], [0, 0.5, math.sqrt(3)/2]]))
+    # rotation_mat_array = rotation_mat_array.dot(np.array([[1, 0, 0], [0, (math.sqrt(3)/2), 0.5], [0, -0.5, (math.sqrt(3)/2)]]))
+    print 'rotation_mat_array:%s'%rotation_mat_array
     quat = transforms3d.quaternions.mat2quat(rotation_mat_array)
     return quat.tolist()
 
@@ -88,6 +93,9 @@ class Component(object):
 
   def get_z_offset(self):
     return self.component_z_offset
+
+  def get_rotation_function(self):
+    return self.rotation_function
 
 class MoveGroupLeftArm(object):
   def __init__(self):
@@ -102,7 +110,7 @@ class MoveGroupLeftArm(object):
     #group.set_max_velocity_scaling_factor(0.15)
     self.group.set_max_acceleration_scaling_factor(0.1)
     if self.group.set_planner_id(PLANNER_ID): 
-      print 'Using planner: ' + PLANNER_ID
+      print "Using planner: %s" % PLANNER_ID
     self.group.set_num_planning_attempts(100)
     self.group.set_planning_time(3)
     self.group.set_start_state_to_current_state()
@@ -135,19 +143,19 @@ class MoveGroupLeftArm(object):
       self.min_limits[idx] = math.radians(jnt)
     for idx, jnt in enumerate(MAX_JOINT_LIMITS_DEG):
       self.max_limits[idx] = math.radians(jnt)
-    self.component_list = []
+    self.component_list = {}
 
   def load_component_list(self):
     """declare and load components here"""
     nic = Component('nic', 0.076, -0.08, 0.14, NIC_SEED_STATE, NIC_ROTATION)
-    self.component_list.append(nic)
+    self.component_list['nic'] = nic
 
     nic2 = Component('nic2', 0.043, -0.08, 0.14, NIC_SEED_STATE, NIC_ROTATION)
-    self.component_list.append(nic2)
+    self.component_list['nic2'] = nic2
 
     #test component: will not work
     nic3 = Component('nic3', 12.55, -0.08, 0.14, NIC_SEED_STATE, NIC_ROTATION)
-    self.component_list.append(nic3)
+    self.component_list['nic3'] = nic3
 
   def __inverse_kinematics(self, position, orientation=None, seed=None):
     """inverse kinematic solver using PyKDL"""
@@ -193,84 +201,62 @@ class MoveGroupLeftArm(object):
         found_all = False
     return found_all
 
-  def goto_component_position(self, component_name, query=True, scale=1):
+  def query_pose(self, query=True):
     global current_theta
-    print 'waiting for service...'
+    print 'Waiting for service...'
     rospy.wait_for_service('collect_pose')
     if (query):
       try:
         collect_pose = rospy.ServiceProxy('collect_pose', CollectPose)
-        response = collect_pose(1) 
-        print 'Pose collected.'
-        print response
-        theta_rad = response.orientation_theta
-        print theta_rad
-        current_theta = math.degrees(theta_rad) + THETA_OFFSET
-        current_theta = math.degrees(3)
-        coord_offset = self.component_list[component_name].get_relative_position(current_theta)
-        goal_quaternion = self.component_list[component_name].convert_theta_to_quaternion(current_theta)
-        goal_x = response.position_x + X_OFFSET + coord_offset[0]
-        goal_y = response.position_y + Y_OFFSET + coord_offset[1]
-        return self.goto_goal_state(goal_x, goal_y, Z_OFFSET, 
-          goal_quaternion, self.component_list[component_name].get_seed_state())
+        return collect_pose(1)
       except rospy.ServiceException, e:
-        print "service call failed: %s"%e
+        print "Service call failed: %s"%e
 
-  def goto_joint_state(self, joint_vals):
+  def goto_component_position(self, component_name, scale=1):
+    global current_theta
+    response = self.query_pose() 
+    print 'Pose collected.'
+    print response
+    theta_rad = response.orientation_theta
+    print theta_rad
+    current_theta = math.degrees(theta_rad) + THETA_OFFSET
+    coord_offset = self.component_list[component_name].get_relative_position(current_theta)
+    goal_quaternion = self.component_list[component_name].convert_theta_to_quaternion(current_theta)
+    goal_x = response.position_x + X_OFFSET + coord_offset[0]
+    goal_y = response.position_y + Y_OFFSET + coord_offset[1]
+    return self.goto_goal_state(goal_x, goal_y, Z_OFFSET, 
+      goal_quaternion, self.component_list[component_name].get_seed_state())
+
+  def goto_joint_state(self, joint_vals, save_name=None):
     joint_goal = self.group.get_current_joint_values()
-    for idx, joint in enumerate(joint_vals):
+    print joint_vals
+    print type(joint_vals)
+    for idx, joint in enumerate(joint_vals.tolist()):
       joint_goal[idx] = joint
-    plan = self.group.go(joint_goal, wait=True)
-    self.group.stop()
-    return plan
+    if save_name != None:
+      self.group.set_joint_value_target(joint_goal)
+      plan = self.group.plan()
+      self.save_trajectory(plan, save_name)
+      return plan
+    else:
+      plan = self.group.go(joint_goal, wait=True)
+      self.group.stop()
+      return plan
 
-  def goto_goal_state(self, x, y, z, quat, seed_state, radians=False):
+  def goto_goal_state(self, x, y, z, quat, seed_state, radians=False, save_name=None):
     joint_goal = self.__inverse_kinematics([x, y, z], quat, seed_state)
-    return self.goto_joint_state(joint_goal)
+    return self.goto_joint_state(joint_goal, save_name)
 
   #For testing only. Do not use on final version
-  def goto_cartesian_state(self, x, y, z, theta, type='nic', radians=False):
-    if type == 'nic':
-      if radians:
-        quat = self.nic_convert_to_quaternion_orientation(theta)
-      else:
-        quat = self.nic_convert_to_quaternion_orientation(math.radians(theta))
-      joint_goal = self.__inverse_kinematics([x, y, z], quat, NIC_SEED_STATE)
-      return self.goto_joint_state(joint_goal)
-    elif type == 'heatsink':
-      if radians:
-        quat = self.heatsink_convert_to_quaternion_orientation(theta)
-      else:
-        quat = self.heatsink_convert_to_quaternion_orientation(math.radians(theta))
-      joint_goal = self.__inverse_kinematics([x, y, z], quat, HEATSINK_SEED_STATE)
-      try:
-        return self.goto_joint_state(joint_goal)
-      except:
-        print "No IK Solution Found"
-        return None
+  def goto_cartesian_state(self, goal_x, goal_y, goal_z, goal_theta, component_name='nic', radians=False):
+    goal_quaternion = self.component_list[component_name].convert_theta_to_quaternion(math.radians(goal_theta))
+    return self.goto_goal_state(goal_x, goal_y, goal_z, 
+      goal_quaternion, self.component_list[component_name].get_seed_state())
 
-  def set_gripper(self, state):
-    rospy.sleep(0.5)
-    gripper_state = GripperState()
-    gripper_state.open = state
-    rate = rospy.Rate(10)
-    self.gripper_io_publisher.publish(gripper_state)
-    rate.sleep()
-    self.gripper_io_publisher.publish(gripper_state)
-    rospy.sleep(0.5)
-
-  def print_state(self):
-    planning_frame = self.group.get_planning_frame()
-    print "Reference frame: %s" % planning_frame
-    eef_link = self.group.get_end_effector_link()
-    print "End effector: %s" % eef_link
-    group_names = self.robot.get_group_names()
-    print "Robot Groups:", self.robot.get_group_names()
-    print "Printing robot state"
-    print self.robot.get_current_state()
-    print "Robot Joint values"
-    print self.group.get_current_joint_values()
-    print ""
+  def goto_cartesian_state_save(self, goal_x, goal_y, goal_z, goal_theta, plan_name, component_name='nic'):
+    goal_quaternion = self.component_list[component_name].convert_theta_to_quaternion(math.radians(goal_theta))
+    return self.goto_goal_state(goal_x, goal_y, goal_z,
+      goal_quaternion, self.component_list[component_name].get_seed_state(), save_name=plan_name)
 
   def extend_trajectory(self, travel_distance):
     cur_pose = self.group.get_current_pose().pose
@@ -287,6 +273,18 @@ class MoveGroupLeftArm(object):
     print plan
     self.group.execute(plan, wait=True)
     return plan
+
+  def save_trajectory(self, plan, plan_name='plan'):
+    file_path = os.path.join(os.path.expanduser('~'), 'Desktop', 'saved_trajectories', plan_name + '.yaml')
+    open(file_path, 'a').close()
+    with open(file_path, 'w') as file_save:
+      yaml.dump(plan, file_save, default_flow_style=True)
+
+  def load_trajectory(self, plan_name):
+    file_path = os.path.join(os.path.expanduser('~'), 'Desktop', 'saved_trajectories', plan_name + '.yaml')
+    with open(file_path, 'r') as file_open:
+      loaded_plan = yaml.load(file_open)
+      self.group.execute(loaded_plan[1])
 
   def manually_interpolated_down(count=13, theta=None):
     global current_theta
@@ -321,6 +319,28 @@ class MoveGroupLeftArm(object):
     self.upright_constraints.orientation_constraints.append(orientation_constraint)
     self.group.set_path_constraints(self.upright_constraints)
 
+  def set_gripper(self, state):
+    rospy.sleep(0.5)
+    gripper_state = GripperState()
+    gripper_state.open = state
+    rate = rospy.Rate(10)
+    self.gripper_io_publisher.publish(gripper_state)
+    rate.sleep()
+    self.gripper_io_publisher.publish(gripper_state)
+    rospy.sleep(0.5)
+
+  def print_state(self):
+    planning_frame = self.group.get_planning_frame()
+    print "Reference frame: %s" % planning_frame
+    eef_link = self.group.get_end_effector_link()
+    print "End effector: %s" % eef_link
+    group_names = self.robot.get_group_names()
+    print "Robot Groups:", self.robot.get_group_names()
+    print "Printing robot state"
+    print self.robot.get_current_state()
+    print "Robot Joint values"
+    print self.group.get_current_joint_values()
+    print ""
 
   def __extend_trajectory_helper(self, plan, start_pose, travel_distance, step=0.005, time_step=0.004):
     traj = plan.joint_trajectory.points
