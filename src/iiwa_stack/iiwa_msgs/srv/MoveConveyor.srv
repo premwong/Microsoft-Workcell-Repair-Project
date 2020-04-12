@@ -1,0 +1,6 @@
+# command should be either 'F' or 'R' to move forward or backwards respectively
+# returns 1 if successful, 0 if not
+
+string command
+---
+int32 status
