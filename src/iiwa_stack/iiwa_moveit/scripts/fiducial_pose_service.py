@@ -36,7 +36,7 @@ def collect(thread_name):
 
       # Receive the data in small chunks and retransmit it
       while True:
-        data = str(connection.recv(200))
+        data = str(connection.recv(400))
         if data:
           print("Received: " + str(data))
         else:
@@ -53,20 +53,21 @@ def handle_collect_pose(req):
   if (ready and len(data) != 0):
     print "returning coordinates"
 
-    recieved_buf = data[:-1].split(',')
+    recieved_buf = data[:-2].split(',')
+    print recieved_buf
     float_buf = [float(i) for i in recieved_buf]
     print float_buf
     cpu_pos = float_buf[0:3]
     slot_pos = float_buf[3:6]
     middle_pos = float_buf[6:9]
 
-    thetas = [float_buf[9], float_buf[10], float_buf[11]]
+    thetas = [float_buf[2], float_buf[5], float_buf[8]]
     new_thetas = []
     for theta in thetas:
-      if theta > 90:
-        new_thetas.append(theta - 180)
-      elif theta < -90:
-        new_thetas.append(theta + 180)
+      if theta > 180:
+        new_thetas.append(theta - 360)
+      elif theta < -180:
+        new_thetas.append(theta + 360)
       else:
         new_thetas.append(theta)
     avg_theta = (new_thetas[0] + new_thetas[1] + new_thetas[2]) / 3
