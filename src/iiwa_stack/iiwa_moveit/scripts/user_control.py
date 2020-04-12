@@ -1,11 +1,9 @@
 #!/usr/bin/env python
-
 """
-Author: Nano Premvuti @premwong
+@Author: Nano Premvuti @premwong
 University of Washington 2020
 Department of Electrical & Computer Engineering
 """
-
 import sys
 import rospy
 from workcell_iiwa_control import MoveGroupLeftArm
@@ -30,12 +28,17 @@ class ItemState(object):
 def replace_nic(move_group, server_item, tray_item):
 	move_group.print_state()
 	try:
-	  print " Press to start sequence"
-	  raw_input()
-	  move_group.goto_cartesian_state(0.4, 0.3, 0.3, 270)
-	  rospy.sleep(1)
-	  move_group.extend_trajectory(-0.06)
-	  move_group._nic = False
+		print " Press to start sequence"
+		raw_input()
+		move_group.goto_component_position('nic')
+		move_group.set_gripper(True)
+		rospy.sleep(2)
+		move_group.extend_trajectory(-0.06)
+		rospy.sleep(1)
+		move_group.set_gripper(False)
+		rospy.sleep(0.5)
+		move_group.extend_trajectory(0.06)
+		
 	except rospy.ROSInterruptException:
 	  return
 	except KeyboardInterrupt:
@@ -53,14 +56,12 @@ def replace_heatsink(server, move_group):
 
 def main():
 	try:
-		server = ItemState(1, 'tray')
+		server = ItemState(1, 'server')
+		tray = ItemState(2, 'tray')
 		myLeftArm = MoveGroupLeftArm()
-		myLeftArm.load_component_list()
-		# myLeftArm.load_trajectory()
-		# myLeftArm.goto_cartesian_state(0.1, 0.7, 0.2, 0)
-		myLeftArm.goto_cartesian_state_save(-0.2, 0.7, 0.3, 45, 'plan6')
-		# myLeftArm.check_ik_validity([0, 0.6], 0)
-		# myLeftArm.goto_component_position('nic')
+		myLeftArm.load_component_map()
+		myLeftArm.goto_fiducial_position()
+		# myLeftArm.goto_cartesian_state(0.1, 0.7, 0.2, 0, 'nic')
 	except rospy.ROSInterruptException:
 	  return
 	except KeyboardInterrupt:
