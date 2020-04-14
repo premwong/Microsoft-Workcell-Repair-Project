@@ -1,25 +1,24 @@
 #!/usr/bin/env python
 
 """
-Author: Nano Premvuti @premwong
+@Author: Nano Premvuti @premwong
 University of Washington 2020
 Department of Electrical & Computer Engineering
 
-This is the control module for the left workcell iiwa arm.
+This is the control module for the left workcell iiwa arm
 """
 import yaml
 import os
 import PyKDL
 import sys
+import time
 import copy
 import rospy
 import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
 from math import pi
-from std_msgs.msg import String
-from iiwa_msgs.msg import WorkcellCartesian
-from iiwa_msgs.msg import GripperState
+from iiwa_msgs.msg import WorkcellCartesian, GripperState
 from moveit_commander.conversions import pose_to_list
 from iiwa_msgs.srv import *
 from moveit_msgs.msg import RobotState, Constraints, OrientationConstraint
@@ -30,10 +29,10 @@ import math
 from urdf_parser_py.urdf import URDF
 from pykdl_utils.kdl_parser import kdl_tree_from_urdf_model
 
-X_OFFSET = -0.021
-Y_OFFSET = 0.0055
+GLOBAL_X_OFFSET = -0.021
+GLOBAL_Y_OFFSET = 0.0055
 Z_OFFSET = 0.14
-THETA_OFFSET = 1
+THETA_OFFSET = 0
 HEATSINK_Z_OFFSET = 0.3
 NIC_A = 0.076
 NIC_B = -0.08
@@ -46,9 +45,6 @@ MAX_JOINT_LIMITS_DEG = [169, 119, 169, 119, 169, 119, 174]
 NIC_SEED_STATE = [1.987323522567749, 1.4358184337615967, -1.9114866256713867, -1.036642074584961, 1.578827142715454, 1.9280040264129639, -1.9716582298278809]
 HDD_SEED_STATE = [0.4520516097545624, 0.9477099180221558, -2.3023149967193604, 2.0533716678619385, 2.569415330886841, -0.9975131750106812, 1.196797490119934]
 #TODO: find / decide seed state to use
-# HEATSINK_SEED_STATE = [2.3536217212677, 1.9468990564346313, -1.464873194694519, -1.863680362701416, 0.37379294633865356, -1.1138713359832764, 0.020486973226070404]
-#HEATSINK_SEED_STATE = [0.6797158718109131, 1.03727126121521, 0.2674739360809326, -1.6521695852279663, 1.8096520900726318, 1.2138895988464355, 1.9531116485595703] #march 14
-# HEATSINK_SEED_STATE = [-1.1050864458084106, -1.9127799272537231, 1.4396296739578247, -1.8199113607406616, 0.30834999680519104, -1.5842403173446655, 0.20372463762760162]
 HEATSINK_SEED_STATE = [-0.7379921078681946, -0.9803051352500916, -0.8230272531509399, 1.9625877141952515, 0.2715606093406677, 1.0199774503707886, 2.101893186569214]
 HEATSINK_ROTATION = [[1, 0, 0], [0, 0, 1], [0, -1, 0]]
 MANUAL_STEP = 0.002
@@ -143,30 +139,28 @@ class MoveGroupLeftArm(object):
       self.min_limits[idx] = math.radians(jnt)
     for idx, jnt in enumerate(MAX_JOINT_LIMITS_DEG):
       self.max_limits[idx] = math.radians(jnt)
-    self.component_list = {}
+    self.component_map = {}
 
-  def load_component_list(self):
+  def load_component_map(self):
     """declare and load components here"""
     nic = Component('nic', 0.076, -0.08, 0.14, NIC_SEED_STATE, NIC_ROTATION)
-    self.component_list['nic'] = nic
-
+    self.component_map['nic'] = nic
     nic2 = Component('nic2', 0.043, -0.08, 0.14, NIC_SEED_STATE, NIC_ROTATION)
-    self.component_list['nic2'] = nic2
-
+    self.component_map['nic2'] = nic2
     #test component: will not work
     nic3 = Component('nic3', 12.55, -0.08, 0.14, NIC_SEED_STATE, NIC_ROTATION)
-    self.component_list['nic3'] = nic3
+    self.component_map['nic3'] = nic3
 
   def __inverse_kinematics(self, position, orientation=None, seed=None):
     """inverse kinematic solver using PyKDL"""
-    _inverse_kin_position_kdl = PyKDL.ChainIkSolverPos_NR_JL(self.iiwa_chain, self.min_limits, self.max_limits, self.forward_kin_position_kdl, self.inverse_kin_velocity_kdl)
+    _inverse_kin_position_kdl = PyKDL.ChainIkSolverPos_NR_JL(self.iiwa_chain, self.min_limits, self.max_limits, 
+      self.forward_kin_position_kdl, self.inverse_kin_velocity_kdl)
     ik = PyKDL.ChainIkSolverVel_pinv(self.iiwa_chain)
     pos = PyKDL.Vector(position[0], position[1], position[2])
     if orientation != None:
       rot = PyKDL.Rotation()
       #PyKDL uses w, x, y, z instead of x, y, z, w
-      rot = rot.Quaternion(orientation[1], orientation[2],
-                           orientation[3], orientation[0])
+      rot = rot.Quaternion(orientation[1], orientation[2], orientation[3], orientation[0])
     seed_array = PyKDL.JntArray(NUM_JOINTS)
     if seed != None:
       seed_array.resize(len(seed))
@@ -191,11 +185,11 @@ class MoveGroupLeftArm(object):
   def check_ik_validity(self, server_position, server_orientation): 
     """checks server pose for IK validity for all components"""
     found_all = True
-    for component in self.component_list:
-      component_position = component.get_relative_position(server_orientation)
-      component_z_offset = component.get_z_offset()
-      component_quaternion = component.convert_theta_to_quaternion(server_orientation)
-      if self.__inverse_kinematics([server_position[0] + component_position[0] + X_OFFSET, server_position[1] + component_position[1] + Y_OFFSET, component_z_offset],
+    for component in self.component_map:
+      component_position = self.component_map[component].get_relative_position(server_orientation)
+      component_z_offset = self.component_map[component].get_z_offset()
+      component_quaternion = self.component_map[component].convert_theta_to_quaternion(server_orientation)
+      if self.__inverse_kinematics([server_position[0] + component_position[0] + GLOBAL_X_OFFSET, server_position[1] + component_position[1] + GLOBAL_Y_OFFSET, component_z_offset],
        component_quaternion, component.get_seed_state()) == None:
         print 'No IK solution found for: %s' % component.component_name
         found_all = False
@@ -212,6 +206,17 @@ class MoveGroupLeftArm(object):
       except rospy.ServiceException, e:
         print "Service call failed: %s"%e
 
+  def goto_fiducial_position(self):
+    global current_theta
+    response = self.query_pose()
+    print 'Pose collected.'
+    print response
+    theta_rad = response.orientation_theta
+    current_theta = theta_rad
+    print math.degrees(current_theta)
+    goal_quaternion = self.component_map['nic'].convert_theta_to_quaternion(current_theta)
+    return self.goto_goal_state(response.position_x + GLOBAL_X_OFFSET, response.position_y + GLOBAL_Y_OFFSET, Z_OFFSET, goal_quaternion, self.component_map['nic'].get_seed_state())
+
   def goto_component_position(self, component_name, scale=1):
     global current_theta
     response = self.query_pose() 
@@ -219,24 +224,22 @@ class MoveGroupLeftArm(object):
     print response
     theta_rad = response.orientation_theta
     print theta_rad
-    current_theta = math.degrees(theta_rad) + THETA_OFFSET
-    coord_offset = self.component_list[component_name].get_relative_position(current_theta)
-    goal_quaternion = self.component_list[component_name].convert_theta_to_quaternion(current_theta)
-    goal_x = response.position_x + X_OFFSET + coord_offset[0]
-    goal_y = response.position_y + Y_OFFSET + coord_offset[1]
+    current_theta = theta_rad + THETA_OFFSET
+    coord_offset = self.component_map[component_name].get_relative_position(current_theta)
+    goal_quaternion = self.component_map[component_name].convert_theta_to_quaternion(current_theta)
+    goal_x = response.position_x + GLOBAL_X_OFFSET + coord_offset[0]
+    goal_y = response.position_y + GLOBAL_Y_OFFSET + coord_offset[1]
     return self.goto_goal_state(goal_x, goal_y, Z_OFFSET, 
-      goal_quaternion, self.component_list[component_name].get_seed_state())
+      goal_quaternion, self.component_map[component_name].get_seed_state())
 
   def goto_joint_state(self, joint_vals, save_name=None):
     joint_goal = self.group.get_current_joint_values()
-    print joint_vals
-    print type(joint_vals)
     for idx, joint in enumerate(joint_vals.tolist()):
       joint_goal[idx] = joint
     if save_name != None:
       self.group.set_joint_value_target(joint_goal)
       plan = self.group.plan()
-      self.save_trajectory(plan, save_name)
+      self.__save_trajectory(plan, save_name)
       return plan
     else:
       plan = self.group.go(joint_goal, wait=True)
@@ -249,14 +252,14 @@ class MoveGroupLeftArm(object):
 
   #For testing only. Do not use on final version
   def goto_cartesian_state(self, goal_x, goal_y, goal_z, goal_theta, component_name='nic', radians=False):
-    goal_quaternion = self.component_list[component_name].convert_theta_to_quaternion(math.radians(goal_theta))
+    goal_quaternion = self.component_map[component_name].convert_theta_to_quaternion(math.radians(goal_theta))
     return self.goto_goal_state(goal_x, goal_y, goal_z, 
-      goal_quaternion, self.component_list[component_name].get_seed_state())
+      goal_quaternion, self.component_map[component_name].get_seed_state())
 
-  def goto_cartesian_state_save(self, goal_x, goal_y, goal_z, goal_theta, plan_name, component_name='nic'):
-    goal_quaternion = self.component_list[component_name].convert_theta_to_quaternion(math.radians(goal_theta))
+  def goto_cartesian_state_save(self, goal_x, goal_y, goal_z, goal_theta, plan_name=int(time.time()), component_name='nic'):
+    goal_quaternion = self.component_map[component_name].convert_theta_to_quaternion(math.radians(goal_theta))
     return self.goto_goal_state(goal_x, goal_y, goal_z,
-      goal_quaternion, self.component_list[component_name].get_seed_state(), save_name=plan_name)
+      goal_quaternion, self.component_map[component_name].get_seed_state(), save_name=plan_name)
 
   def extend_trajectory(self, travel_distance):
     cur_pose = self.group.get_current_pose().pose
@@ -274,13 +277,7 @@ class MoveGroupLeftArm(object):
     self.group.execute(plan, wait=True)
     return plan
 
-  def save_trajectory(self, plan, plan_name='plan'):
-    file_path = os.path.join(os.path.expanduser('~'), 'Desktop', 'saved_trajectories', plan_name + '.yaml')
-    open(file_path, 'a').close()
-    with open(file_path, 'w') as file_save:
-      yaml.dump(plan, file_save, default_flow_style=True)
-
-  def load_trajectory(self, plan_name):
+  def execute_trajectory_from_file(self, plan_name):
     file_path = os.path.join(os.path.expanduser('~'), 'Desktop', 'saved_trajectories', plan_name + '.yaml')
     with open(file_path, 'r') as file_open:
       loaded_plan = yaml.load(file_open)
@@ -342,6 +339,12 @@ class MoveGroupLeftArm(object):
     print self.group.get_current_joint_values()
     print ""
 
+  def __save_trajectory(self, plan, plan_name='plan'):
+    file_path = os.path.join(os.path.expanduser('~'), 'Desktop', 'saved_trajectories', plan_name + '.yaml')
+    open(file_path, 'a').close()
+    with open(file_path, 'w') as file_save:
+      yaml.dump(plan, file_save, default_flow_style=True)
+      
   def __extend_trajectory_helper(self, plan, start_pose, travel_distance, step=0.005, time_step=0.004):
     traj = plan.joint_trajectory.points
     cur_pose_z = start_pose.position.z 
