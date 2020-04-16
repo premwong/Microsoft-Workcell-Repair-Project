@@ -45,15 +45,26 @@ MAX_JOINT_LIMITS_DEG = [169, 119, 169, 119, 169, 119, 174]
 NIC_SEED_STATE = [1.987323522567749, 1.4358184337615967, -1.9114866256713867, -1.036642074584961, 1.578827142715454, 1.9280040264129639, -1.9716582298278809]
 HDD_SEED_STATE = [0.4520516097545624, 0.9477099180221558, -2.3023149967193604, 2.0533716678619385, 2.569415330886841, -0.9975131750106812, 1.196797490119934]
 #TODO: find / decide seed state to use
-HEATSINK_SEED_STATE = [-0.7379921078681946, -0.9803051352500916, -0.8230272531509399, 1.9625877141952515, 0.2715606093406677, 1.0199774503707886, 2.101893186569214]
+HEATSINK_SEED_STATE = [-2.3611752224604667, -1.404261191226993, -0.7302048468113553, -1.762417586918243, -1.5633125905151535, 1.9439532527527876, -0.9330501636422028]
 HEATSINK_ROTATION = [[1, 0, 0], [0, 0, 1], [0, -1, 0]]
 MANUAL_STEP = 0.002
 PLANNER_ID = 'RRTConnectkConfigDefault'
-NIC_ROTATION = lambda sin_angle, cos_angle: [[sin_angle, -1 * cos_angle, 0], [-1 * cos_angle, -1 * sin_angle, 0], [0, 0, -1]]
+NIC_ROTATION = lambda sin_angle, cos_angle: [[sin_angle, -1*cos_angle, 0], 
+                                            [-1*cos_angle, -1*sin_angle, 0], 
+                                            [0, 0, -1]]
+# HEATSINK_ROTATION = lambda sin_angle, cos_angle: [[sin_angle, -1*cos_angle, 0],
+#                                                  [-1*(math.sqrt(3)/2)*cos_angle, -1*(math.sqrt(3)/2)*sin_angle, 0.5],
+#                                                  [-0.5*cos_angle, -0.5*sin_angle, -1*math.sqrt(3)/2]]
+HEATSINK_ROTATION = lambda sin_angle, cos_angle: [[sin_angle, -1*(math.sqrt(3)/2)*cos_angle, 0.5*cos_angle],
+                                                 [-1*cos_angle, -1*(math.sqrt(3)/2)*sin_angle, 0.5*sin_angle],
+                                                 [0, -0.5, -1*math.sqrt(3)/2]]
 
-HDD_TRANSFORM = np.array([[1, 0, 0], [0, (math.sqrt(3)/2), -0.5], [0, 0.5, math.sqrt(3)/2]])
 
-HEATSINK_ROTATION = lambda sin_angle, cos_angle: [[1, 0, 0], [0, 0, 1], [0, -1, 0]]
+
+
+HEATSINK_TRANSFORM = np.array([[1, 0, 0], [0, (math.sqrt(3)/2), -0.5], [0, 0.5, math.sqrt(3)/2]])
+HDD_TRANFORM = np.array([[1, 0, 0], [0, (math.sqrt(3)/2), 0.5], [0, -0.5, (math.sqrt(3)/2)]])
+
 #TODO: calculate HDD rotation 
 current_theta = 0
 
@@ -62,8 +73,8 @@ class Component(object):
   def __init__(self, component_name, component_a_offset, component_b_offset, component_z_offset, seed_state, rotation_function, component_id=None):
     super(Component, self).__init__()
     self.component_name = component_name
-    self.component_a_offset = component_a_offset
-    self.component_b_offset = component_b_offset
+    self.component_a_offset = component_a_offset # x offset from on-server fiducial 
+    self.component_b_offset = component_b_offset # y offset from on-server fiducial
     self.component_z_offset = component_z_offset
     self.component_id = component_id
     self.seed_state = seed_state
@@ -145,11 +156,12 @@ class MoveGroupLeftArm(object):
     """declare and load components here"""
     nic = Component('nic', 0.076, -0.08, 0.14, NIC_SEED_STATE, NIC_ROTATION)
     self.component_map['nic'] = nic
-    nic2 = Component('nic2', 0.043, -0.08, 0.14, NIC_SEED_STATE, NIC_ROTATION)
-    self.component_map['nic2'] = nic2
-    #test component: will not work
-    nic3 = Component('nic3', 12.55, -0.08, 0.14, NIC_SEED_STATE, NIC_ROTATION)
-    self.component_map['nic3'] = nic3
+
+    nic = Component('nic1', 0.076, -0.08, 0.14, HEATSINK_SEED_STATE, NIC_ROTATION)
+    self.component_map['nic1'] = nic
+
+    heatsink1 = Component('heatsink1', 0.043, -0.08, 0.14, HEATSINK_SEED_STATE, HEATSINK_ROTATION)
+    self.component_map['heatsink1'] = heatsink1
 
   def __inverse_kinematics(self, position, orientation=None, seed=None):
     """inverse kinematic solver using PyKDL"""
@@ -244,6 +256,7 @@ class MoveGroupLeftArm(object):
     else:
       plan = self.group.go(joint_goal, wait=True)
       self.group.stop()
+      print 'goto joint state%s'%self.group.get_current_pose().pose
       return plan
 
   def goto_goal_state(self, x, y, z, quat, seed_state, radians=False, save_name=None):
@@ -256,26 +269,10 @@ class MoveGroupLeftArm(object):
     return self.goto_goal_state(goal_x, goal_y, goal_z, 
       goal_quaternion, self.component_map[component_name].get_seed_state())
 
-  def goto_cartesian_state_save(self, goal_x, goal_y, goal_z, goal_theta, plan_name=int(time.time()), component_name='nic'):
+  def goto_cartesian_state_save(self, goal_x, goal_y, goal_z, goal_theta, plan_name='plan', component_name='nic'):
     goal_quaternion = self.component_map[component_name].convert_theta_to_quaternion(math.radians(goal_theta))
     return self.goto_goal_state(goal_x, goal_y, goal_z,
       goal_quaternion, self.component_map[component_name].get_seed_state(), save_name=plan_name)
-
-  def extend_trajectory(self, travel_distance):
-    cur_pose = self.group.get_current_pose().pose
-    z_state = cur_pose.position.z
-    waypoints = []
-    wpose = copy.deepcopy(cur_pose)
-    wpose.position.z += 0.0001
-    waypoints.append(wpose)
-    print waypoints
-    (plan, fraction) = self.group.compute_cartesian_path(waypoints, 0.03, 0.0)
-    if self.__extend_trajectory_helper(plan, copy.deepcopy(wpose), travel_distance) == None:
-      print "extend_trajectory failed"
-      return None
-    print plan
-    self.group.execute(plan, wait=True)
-    return plan
 
   def execute_trajectory_from_file(self, plan_name):
     file_path = os.path.join(os.path.expanduser('~'), 'Desktop', 'saved_trajectories', plan_name + '.yaml')
@@ -344,8 +341,28 @@ class MoveGroupLeftArm(object):
     open(file_path, 'a').close()
     with open(file_path, 'w') as file_save:
       yaml.dump(plan, file_save, default_flow_style=True)
+
+
+  ####DO NOT USE BY ITSELF, NEED TO GOTO JOINT GOAL FIRST. THIS FUNCTION IGNORES COLLISION CHECKS SO USE WITH CAUTION! ####
+  def extend_trajectory(self, travel_distance):
+    cur_pose = self.group.get_current_pose().pose
+    print 'extend_trajectory'
+    print cur_pose
+    z_state = cur_pose.position.z
+    waypoints = []
+    wpose = copy.deepcopy(cur_pose)
+    wpose.position.z += 0.0001
+    waypoints.append(wpose)
+    print waypoints
+    (plan, fraction) = self.group.compute_cartesian_path(waypoints, 0.03, 0.0)
+    if self.__extend_trajectory_helper(plan, copy.deepcopy(wpose), travel_distance) == None:
+      print "extend_trajectory failed"
+      return None
+    print plan
+    self.group.execute(plan, wait=True)
+    return plan
       
-  def __extend_trajectory_helper(self, plan, start_pose, travel_distance, step=0.005, time_step=0.004):
+  def __extend_trajectory_helper(self, plan, start_pose, travel_distance, step=0.005, time_step=0.1):
     traj = plan.joint_trajectory.points
     cur_pose_z = start_pose.position.z 
     start_time = plan.joint_trajectory.points[-1].time_from_start
@@ -353,12 +370,12 @@ class MoveGroupLeftArm(object):
       point = JointTrajectoryPoint()
       print i
       joint_goal = self.__inverse_kinematics([start_pose.position.x, start_pose.position.y, cur_pose_z + (np.sign(travel_distance) * step)], 
-        [start_pose.orientation.x, start_pose.orientation.y, start_pose.orientation.z, start_pose.orientation.w], NIC_SEED_STATE)
+        [start_pose.orientation.w, start_pose.orientation.x, start_pose.orientation.y, start_pose.orientation.z], NIC_SEED_STATE)
       if joint_goal == None:
         print "No IK on extend trajectory found"
         return None
       joint_list = []
-      for idx, jnt in enumerate(joint_goal):
+      for idx, jnt in enumerate(joint_goal.tolist()):
         joint_list.append(jnt)
       point.positions = joint_list
       print joint_list

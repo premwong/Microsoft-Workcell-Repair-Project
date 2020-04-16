@@ -56,12 +56,19 @@ def replace_heatsink(server, move_group):
 
 def main():
 	try:
-		server = ItemState(1, 'server')
-		tray = ItemState(2, 'tray')
 		myLeftArm = MoveGroupLeftArm()
+
 		myLeftArm.load_component_map()
-		myLeftArm.goto_fiducial_position()
-		# myLeftArm.goto_cartesian_state(0.1, 0.7, 0.2, 0, 'nic')
+		myLeftArm.print_state()
+		# myLeftArm.goto_fiducial_position()
+
+
+		# myLeftArm.goto_cartesian_state(0.1, 0.7, 0.25, -30, 'nic1')
+
+		rospy.sleep(4)
+		# myLeftArm.execute_trajectory_from_file('nic_to_heatsink1')
+		# rospy.sleep(8)
+		myLeftArm.goto_cartesian_state(0.0, 0.6, 0.25, 90, 'heatsink1')
 	except rospy.ROSInterruptException:
 	  return
 	except KeyboardInterrupt:
