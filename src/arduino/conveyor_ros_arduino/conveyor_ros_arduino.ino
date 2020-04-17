@@ -5,21 +5,24 @@
 # define STARTBUTTON 13
 # define DIRECTION 5
 # define SPEEDCONTROL 3
+# define SPEED 43
 
 //using factory max rpm: 500, since speed control : 0-5V, 1V ~ 500rpm
+//conveyor isn't linear though so its a really really rough estimate ):
 
 void moveForward() {
-  analogWrite(SPEEDCONTROL, 30);
+  analogWrite(SPEEDCONTROL, SPEED);
   digitalWrite(DIRECTION, LOW);
   digitalWrite(STARTBUTTON,LOW);
+  delay(500);
 }
 void moveReverse() {
-  analogWrite(SPEEDCONTROL, 30);
+  analogWrite(SPEEDCONTROL, SPEED);
   digitalWrite(DIRECTION, HIGH);
   digitalWrite(STARTBUTTON,LOW);
 }
 
-void stop() {
+void stop_conveyor() {
   digitalWrite(STARTBUTTON, HIGH);
 }
 
@@ -27,7 +30,6 @@ void setup() {
   pinMode(STARTBUTTON, OUTPUT);
   pinMode(DIRECTION, OUTPUT);
   pinMode(SPEEDCONTROL, OUTPUT);
-  pinMode(7,OUTPUT); // testing
 
   Serial.begin(9600);
   digitalWrite(STARTBUTTON, HIGH);
@@ -36,10 +38,10 @@ void setup() {
 void loop() {
   if (Serial.available() > 0) {
     String data = Serial.readString();
-    switch(data) {
-      case "F": moveForward();
-      case "R": moveReverse();
-      case "S": stop();
+    switch(data.charAt(0)) {
+      case 'F': moveForward();
+      case 'R': moveReverse();
+      case 'S': stop_conveyor();
     }
     Serial.flush();
   }
