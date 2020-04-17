@@ -1,5 +1,4 @@
 #include <ros.h>
-#include <std_msgs/String.h>
 // ROS Master needs to have a topic "ready" and must send it either "F" or "R"
 
 # define STARTBUTTON 13
@@ -8,23 +7,7 @@
 # define SPEED 43
 
 //using factory max rpm: 500, since speed control : 0-5V, 1V ~ 500rpm
-//conveyor isn't linear though so its a really really rough estimate ):
 
-void moveForward() {
-  analogWrite(SPEEDCONTROL, SPEED);
-  digitalWrite(DIRECTION, LOW);
-  digitalWrite(STARTBUTTON,LOW);
-  delay(500);
-}
-void moveReverse() {
-  analogWrite(SPEEDCONTROL, SPEED);
-  digitalWrite(DIRECTION, HIGH);
-  digitalWrite(STARTBUTTON,LOW);
-}
-
-void stop_conveyor() {
-  digitalWrite(STARTBUTTON, HIGH);
-}
 
 void setup() {
   pinMode(STARTBUTTON, OUTPUT);
@@ -33,16 +16,29 @@ void setup() {
 
   Serial.begin(9600);
   digitalWrite(STARTBUTTON, HIGH);
+  analogWrite(SPEEDCONTROL, SPEED);
 }
+
+int global_direction = 0;
 
 void loop() {
   if (Serial.available() > 0) {
-    String data = Serial.readString();
-    switch(data.charAt(0)) {
-      case 'F': moveForward();
-      case 'R': moveReverse();
-      case 'S': stop_conveyor();
+    char data = Serial.readString().charAt(0);
+    switch(data) {
+      case 'F': global_direction = 1;
+                break;
+      case 'R': global_direction = -1;
+                break;
+      case 'S': global_direction = 0;
+                break;
     }
+    if (global_direction == 1) {
+      digitalWrite(DIRECTION, LOW);
+    } else if (global_direction == -1) {
+      digitalWrite(DIRECTION, HIGH);
+    }
+    int32_t state = ((global_direction == 1) || (global_direction == -1)) ? LOW : HIGH;
+    digitalWrite(STARTBUTTON, state);
     Serial.flush();
   }
 }
