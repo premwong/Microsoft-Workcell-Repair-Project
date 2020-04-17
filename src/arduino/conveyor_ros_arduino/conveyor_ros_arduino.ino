@@ -5,20 +5,21 @@
 # define STARTBUTTON 13
 # define DIRECTION 5
 # define SPEEDCONTROL 3
-# define TIME_DELAY 5000
+
+//using factory max rpm: 500, since speed control : 0-5V, 1V ~ 500rpm
 
 void moveForward() {
-  analogWrite(SPEEDCONTROL, 50);
+  analogWrite(SPEEDCONTROL, 30);
   digitalWrite(DIRECTION, LOW);
   digitalWrite(STARTBUTTON,LOW);
-  delay(TIME_DELAY);
-  digitalWrite(STARTBUTTON, HIGH);
 }
 void moveReverse() {
-  analogWrite(SPEEDCONTROL, 50);
+  analogWrite(SPEEDCONTROL, 30);
   digitalWrite(DIRECTION, HIGH);
   digitalWrite(STARTBUTTON,LOW);
-  delay(TIME_DELAY);
+}
+
+void stop() {
   digitalWrite(STARTBUTTON, HIGH);
 }
 
@@ -35,14 +36,10 @@ void setup() {
 void loop() {
   if (Serial.available() > 0) {
     String data = Serial.readString();
-    
-    if (data.equals("F")) {
-      digitalWrite(7, HIGH); // This is just for testing
-      delay(3000);
-      digitalWrite(7,LOW);
-      moveForward();
-    } else if (data.equals("R")) {
-      moveReverse();
+    switch(data) {
+      case "F": moveForward();
+      case "R": moveReverse();
+      case "S": stop();
     }
     Serial.flush();
   }
