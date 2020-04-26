@@ -8,6 +8,7 @@ import sys
 import rospy
 from workcell_iiwa_control import MoveGroupLeftArm
 from std_msgs.msg import Float64MultiArray
+from iiwa_msgs.srv import MoveConveyor
 
 class ItemState(object):
 	"""item that holds components eg. server, tray, etc"""
@@ -56,16 +57,20 @@ def replace_heatsink(server, move_group):
 		return
 
 def autostop_callback(camera_feed):
+	print 'hi'
 	camera_feed_buffer = camera_feed.data
-	move_conveyor("S")
+	if camera_feed_buffer[6] <= 200:
+		move_conveyor("S")
 
-rospy.init__node('user_control')
-camera_subscriber = rospy.Subscriber('/camera_pose_feed', Float64MultiArray, autostop_callback)
+rospy.init_node('user_control')
+rospy.Subscriber('camera_pose_feed', Float64MultiArray, autostop_callback)
+print 'waiting for conveyor service...'
 rospy.wait_for_service('move_conveyor')
-	try:
-		move_conveyor = rospy.ServiceProxy('move_conveyor', MoveConveyor)
-	except rospy.ServiceException as e:
-		print(e)
+try:
+	move_conveyor = rospy.ServiceProxy('move_conveyor', MoveConveyor)
+	print 'hello conveyor'
+except rospy.ServiceException as e:
+	print(e)
 
 def main():
 	try:
@@ -78,8 +83,10 @@ def main():
 		# rospy.sleep(4)
 		# # myLeftArm.execute_trajectory_from_file('nic_to_heatsink1')
 		# # rospy.sleep(8)
-		# myLeftArm.goto_cartesian_state(0.0, 0.6, 0.25, 90, 'heatsink1')
+		# myLeftArm.gotoartesian_state(0.0, 0.6, 0.25, 90, 'heatsink1')
 		move_conveyor("F")
+		rospy.spin()
+
 	except rospy.ROSInterruptException:
 	  return
 	except KeyboardInterrupt:
@@ -87,7 +94,6 @@ def main():
 
 if __name__ == '__main__':
   main()
-
 
 
 

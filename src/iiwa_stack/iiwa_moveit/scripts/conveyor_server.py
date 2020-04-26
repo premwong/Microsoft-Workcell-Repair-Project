@@ -4,7 +4,7 @@ import rospy
 import serial as ps
 
 from std_msgs.msg import String
-from iiwa_tool_moveit.srv import MoveConveyor
+from iiwa_msgs.srv import MoveConveyor
 
 def handle_move_conveyor(req):
 	print("Trying to move with the below command: ")
