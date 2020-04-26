@@ -8,12 +8,12 @@ from iiwa_msgs.srv import CollectPose,CollectPoseResponse
 import rospy
 import numpy as np 
 import math
+from std_msgs.msg import Float64MultiArray
 
-TCP_IP = '172.31.1.150'#'169.254.207.252' # from ipconfig - ethernet adapter
+TCP_IP = '172.31.1.150'#'169.254.207.252' 
 PORT_NUMBER = 69
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
 server_address = (TCP_IP, PORT_NUMBER)
 print "Starting up on " + TCP_IP
 sock.bind(server_address)
@@ -21,30 +21,34 @@ sock.listen(1)
 data = ''
 ready = False
 rospy.init_node('collect_pose_server')
+camera_pose_pub = rospy.Publisher('camera_pose_feed', Float64MultiArray, queue_size=50)
 
 def collect(thread_name):
   global data
   global ready
   while True:
-    # Wait for a connection
     print('waiting for a connection...')
     connection, client_address = sock.accept()
     ready = True
     print('accepted!')
     try:
       print('connection from', client_address)
-
-      # Receive the data in small chunks and retransmit it
       while True:
         data = str(connection.recv(400))
         if data:
           print("Received: " + str(data))
+          publish_data = Float64MultiArray()
+          publish_data.data = convert_data_string(data)
+          camera_pose_pub.publish(publish_data)
         else:
           print("Waiting...")
-            
     finally:
-        # Clean up the connection
       connection.close()
+
+def convert_data_string(data_string):
+  recieved_buf = data[:-1].split(',')
+  float_buf = [float(i) for i in recieved_buf]
+  return float_buf
 
 def handle_collect_pose(req):
   global data
@@ -52,15 +56,11 @@ def handle_collect_pose(req):
   #print "Returning Coordinates pos_x: %s \n pos_y: %s \n pos_z: %s \n ori_w %s \n ori_x %s \n ori_y %s \n ori_z  %s \n" %(req.a, req.b, (req.a + req.b))
   if (ready and len(data) != 0):
     print "returning coordinates"
-
-    recieved_buf = data[:-2].split(',')
-    print recieved_buf
-    float_buf = [float(i) for i in recieved_buf]
+    float_buf = convert_data_string(data)
     print float_buf
     cpu_pos = float_buf[0:3]
     slot_pos = float_buf[3:6]
     middle_pos = float_buf[6:9]
-
     thetas = [float_buf[2], float_buf[5], float_buf[8]]
     new_thetas = []
     for theta in thetas:
@@ -74,7 +74,6 @@ def handle_collect_pose(req):
     resp = CollectPoseResponse()
     resp.position_x = cpu_pos[0] /1000
     resp.position_y = cpu_pos[1] /1000
-
     resp.orientation_theta = math.radians(avg_theta)
     return resp
  

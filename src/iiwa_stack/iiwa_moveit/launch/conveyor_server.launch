@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+	<group ns="iiwa">
+	  <node name="conveyor_server" pkg="iiwa_moveit" type="conveyor_server.py" respawn="false" output="screen">
+	  </node>
+	</group>
+</launch>
