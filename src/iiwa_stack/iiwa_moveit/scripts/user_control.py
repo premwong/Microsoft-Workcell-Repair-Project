@@ -6,9 +6,12 @@ Department of Electrical & Computer Engineering
 """
 import sys
 import rospy
-from workcell_iiwa_control import MoveGroupLeftArm
+from workcell_iiwa_control import MoveGroupLeftArm, Component
 from std_msgs.msg import Float64MultiArray
 from iiwa_msgs.srv import MoveConveyor
+from config import * 
+
+CONVEYOR_ENABLE = False
 
 class ItemState(object):
 	"""item that holds components eg. server, tray, etc"""
@@ -27,20 +30,20 @@ class ItemState(object):
 	def get_parts_list(self):
 		return self.__dict__
 
-def replace_nic(move_group, server_item, tray_item):
-	move_group.print_state()
+def replace_nic(move_group):
 	try:
-		print " Press to start sequence"
+		print "NIC selected. Press to start sequence"
 		raw_input()
 		move_group.goto_component_position('nic')
-		move_group.set_gripper(True)
 		rospy.sleep(2)
-		move_group.extend_trajectory(-0.06)
-		rospy.sleep(1)
-		move_group.set_gripper(False)
-		rospy.sleep(0.5)
-		move_group.extend_trajectory(0.06)
-		
+		move_group.goto_home_state()
+
+		# move_group.set_gripper(True)
+		# rospy.sleep(6)
+		# move_group.interpolated_trajectory(move_group.component_map['nic'].get_z_offset() - Z_OFFSET, 0.001)
+		# move_group.interpolated_trajectory(Z_OFFSET - move_group.component_map['nic'].get_z_offset(), 0.001)
+		# move_group.goto_component_tray('heatsink1')
+		# move_group.interpolated_trajectory(-0.03, 0.002)
 	except rospy.ROSInterruptException:
 	  return
 	except KeyboardInterrupt:
@@ -57,34 +60,51 @@ def replace_heatsink(server, move_group):
 		return
 
 def autostop_callback(camera_feed):
-	print 'hi'
 	camera_feed_buffer = camera_feed.data
 	if camera_feed_buffer[6] <= 200:
 		move_conveyor("S")
 
-rospy.init_node('user_control')
-rospy.Subscriber('camera_pose_feed', Float64MultiArray, autostop_callback)
-print 'waiting for conveyor service...'
-rospy.wait_for_service('move_conveyor')
-try:
-	move_conveyor = rospy.ServiceProxy('move_conveyor', MoveConveyor)
-	print 'hello conveyor'
-except rospy.ServiceException as e:
-	print(e)
+
+# dispatch_table = {'nic':replace_nic, 'heatsink1':replace_heatsink1, 'heatsink2':replace_heatsink2, 'hdd1':replaceHddHandler_1, 'hdd2':replaceHddHandler_2}
+
+
+if CONVEYOR_ENABLE:
+	rospy.Subscriber('camera_pose_feed', Float64MultiArray, autostop_callback)
+	print 'waiting for conveyor service...'
+	try:
+		rospy.wait_for_service('move_conveyor', 1)
+	except:
+		print 'Service call timeout'
+	try:
+		move_conveyor = rospy.ServiceProxy('move_conveyor', MoveConveyor)
+		print 'hello conveyor'
+	except rospy.ServiceException as e:
+		print(e)
 
 def main():
 	try:
-		# myLeftArm = MoveGroupLeftArm()
+		nic = Component('nic', NIC_OFFSET, NIC_SEED_STATE, NIC_ROTATION, (0.6, 0, 0))
+		heatsink = Component('heatsink1', HEATSINK_OFFSET, NIC_SEED_STATE, HEATSINK_ROTATION, (0.6, 0, 0), 90)
+		hdd = Component('hdd1', HEATSINK_OFFSET, NIC_SEED_STATE, HDD_ROTATION, (0.6, 0, 0), -90)
+		myLeftArm = MoveGroupLeftArm()
+		myLeftArm.load_component_map([nic, heatsink, hdd])
+		myLeftArm.print_state()
+		if myLeftArm.query_pose_and_check_ik() == None:
+			print 'ik solutions found'
+			replace_nic(myLeftArm)
+		# pose = myLeftArm.query_pose()
+		# myLeftArm.check_ik_validity(pose)
 
-		# myLeftArm.load_component_map()
-		# myLeftArm.print_state()
+
+		
+		
 		# # myLeftArm.goto_fiducial_position()
-		# # myLeftArm.goto_cartesian_state(0.1, 0.7, 0.25, -30, 'nic1')
+		# myLeftArm.goto_cartesian_state(0.1, 0.7, 0.25, -30, 'nic')
 		# rospy.sleep(4)
 		# # myLeftArm.execute_trajectory_from_file('nic_to_heatsink1')
 		# # rospy.sleep(8)
 		# myLeftArm.gotoartesian_state(0.0, 0.6, 0.25, 90, 'heatsink1')
-		move_conveyor("F")
+		# move_conveyor("F")
 		rospy.spin()
 
 	except rospy.ROSInterruptException:
