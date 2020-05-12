@@ -51,12 +51,15 @@ class Component(object):
     y = (math.sin(theta) * self.component_a_offset) + (math.cos(theta) * self.component_b_offset)
     return x, y
 
-  #w, x, y, z
+  #w, x, y, z-------------------
+    super(MoveGroupLeftArm, self).__init__()
+    moveit_commander.roscpp_initialize(sys.argv)
+    rospy.init_node('iiwa_move_to_ee_pose', anonymous=True)
+    self.robot = moveit_commander.RobotCommander()
   def convert_theta_to_quaternion(self, theta):
     cos_angle = math.cos(theta + math.radians(self.angle_offset))
     sin_angle = math.sin(theta + math.radians(self.angle_offset))
     rotation_mat_array = np.array(self.rotation_function(sin_angle, cos_angle))
-    print 'rotation_mat_array:%s'%rotation_mat_array
     quat = transforms3d.quaternions.mat2quat(rotation_mat_array)
     return quat.tolist()
 
@@ -95,7 +98,7 @@ class MoveGroupLeftArm(object):
       print 'Service call timeout'
     try:
       self.set_speed_limits = rospy.ServiceProxy('configuration/setSmartServoLimits', SetSmartServoJointSpeedLimits)
-      response = self.set_speed_limits(0.3, 0.1, -1)
+      response = self.set_speed_limits(VELOCITY_SCALE, 0.1, -1)
       print 'Velocity limit set'
       print response
     except rospy.ServiceException, e:
@@ -156,7 +159,7 @@ class MoveGroupLeftArm(object):
   def query_pose_and_check_ik(self):
     response = self.query_pose()
     theta_rad = response.orientation_theta
-    self.check_ik_validity([response.position_x + GLOBAL_OFFSET[0], response.position_y + GLOBAL_OFFSET[1]], theta_rad)
+    return self.check_ik_validity([response.position_x + GLOBAL_OFFSET[0], response.position_y + GLOBAL_OFFSET[1]], theta_rad)
 
   def check_ik_validity(self, server_position, server_orientation): 
     """checks server pose for IK validity for all components"""
@@ -226,9 +229,13 @@ class MoveGroupLeftArm(object):
       self.__save_trajectory(plan, save_name)
       return plan
     else:
+      start_time = time.time()
       plan = self.group.go(joint_goal, wait=True)
       self.group.stop()
       print 'goto joint state%s'%self.group.get_current_pose().pose
+      end_time = time.time()
+      rospy.sleep((end_time - start_time) * 0.5)
+      print '----------------------'
       return plan
 
   def goto_home_state(self):
@@ -236,6 +243,11 @@ class MoveGroupLeftArm(object):
 
   def goto_goal_state(self, x, y, z, quat, seed_state, radians=False, save_name=None):
     joint_goal = self.__inverse_kinematics([x, y, z], quat, seed_state)
+    joint_list = joint_goal.tolist()
+    joint_7 = joint_list[6]
+    joint_list[6] = joint_7 + math.radians(0)
+    print 'joint7%s'% math.degrees(joint_7)
+    joint_goal = np.array(joint_list)
     return self.goto_joint_state(joint_goal, save_name)
 
   #For testing only. Do not use on final version
@@ -335,7 +347,7 @@ class MoveGroupLeftArm(object):
     self.group.execute(plan, wait=True)
     return plan
       
-  def __extend_trajectory_helper(self, plan, start_pose, travel_distance, step=0.005, time_step=0.1):
+  def __extend_trajectory_helper(self, plan, start_pose, travel_distance, step=0.002, time_step=0.05):
     traj = plan.joint_trajectory.points
     cur_pose_z = start_pose.position.z 
     start_time = plan.joint_trajectory.points[-1].time_from_start
@@ -352,7 +364,7 @@ class MoveGroupLeftArm(object):
         joint_list.append(jnt)
       point.positions = joint_list
       print joint_list
-      point.velocities = [0.0, 0.01, 0.01, 0.01, 0.01, 0.01, 0.0]
+      point.velocities = [0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02]
       point.accelerations = [0,0,0,0,0,0,0]
       time = rospy.Duration.from_sec(start_time.to_sec() + time_step)
       start_time += rospy.Duration.from_sec(time_step)
