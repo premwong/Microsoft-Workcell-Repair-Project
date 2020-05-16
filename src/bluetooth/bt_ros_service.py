@@ -9,13 +9,7 @@ import rospy
 from iiwa_msgs.srv import BluetoothFlag
 from bluetooth import *
 
-receive_state = True
 server_sock = None
-
-def listener():
-    rospy.init_node('listener', anonymous=True)
-    rospy.Subscriber("conveyor_done", String, callback)
-    rospy.spin()
 
 def callback(data):
     if data == "done":
@@ -43,8 +37,8 @@ def setup_bluetooth():
 if __name__ == "__main__":
     rospy.init_node('bt_node', anonymous=True)
     pub = rospy.Publisher('bl_ready', BluetoothFlag, queue_size=10)
+    rospy.Subscriber("conveyor_done", String, callback)
     rate = rospy.Rate(10)
-
     setup_bluetooth()
 
     try:
@@ -57,10 +51,6 @@ if __name__ == "__main__":
                     print("received [%s]" % data)
                     if (data == "start"):
                         pub.publish(data)
-                        receive_state = False
-            else:
-                listener()
-
             rate.sleep()
     except IOError:
         print("IOError.")
