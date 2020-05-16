@@ -3,12 +3,13 @@
 import numpy as np 
 import math
 
-GLOBAL_OFFSET = (0, -0.01)
+GLOBAL_OFFSET = (0, -0.0075)
 Z_OFFSET = 0.16
 THETA_OFFSET = 0
 HEATSINK_Z_OFFSET = 0.3
 
 NIC_OFFSET = (0.07, -0.08, 0.13) #x, y, z
+# NIC_OFFSET = (0, 0, 0.14)
 HEATSINK_OFFSET = (-0.3, -0.04, 0.2)
 PATH_CONSTRAINT_TOLERANCE = 0.001
 NUM_JOINTS = 7
@@ -34,7 +35,7 @@ HEATSINK_ROTATION = lambda sin_angle, cos_angle: [[sin_angle, -1*(math.sqrt(3)/2
                                                  [0, -0.5, -1*math.sqrt(3)/2]]
 
 HDD_ROTATION = lambda sin_angle, cos_angle: [[sin_angle, -1*(math.sqrt(3)/2)*cos_angle, -0.5*cos_angle],
-                                                 [-1*cos_angle, -1*(math.sqrt(3)/2)*sin_angle, -0.5*sin_angle],
+                                                #  [-1*cos_angle, -1*(math.sqrt(3)/2)*sin_angle, -0.5*sin_angle],
                                                  [0, 0.5, -1*math.sqrt(3)/2]]
 
 HEATSINK_TRANSFORM = np.array([[1, 0, 0], [0, (math.sqrt(3)/2), -0.5], [0, 0.5, math.sqrt(3)/2]])

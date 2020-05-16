@@ -9,6 +9,7 @@ import rospy
 import numpy as np 
 import math
 from std_msgs.msg import Float64MultiArray
+from config import *
 
 TCP_IP = '172.31.1.150'#'169.254.207.252' 
 PORT_NUMBER = 69
@@ -36,7 +37,16 @@ def collect(thread_name):
       while True:
         data = str(connection.recv(400))
         if data:
-          print("Received: " + str(data))
+          data_array_printout = convert_data_string(str(data))
+          data_array_printout[0] += GLOBAL_OFFSET[0]
+          data_array_printout[3] += GLOBAL_OFFSET[0]
+          data_array_printout[6] += GLOBAL_OFFSET[0]
+
+          data_array_printout[1] += GLOBAL_OFFSET[1]
+          data_array_printout[4] += GLOBAL_OFFSET[1]
+          data_array_printout[7] += GLOBAL_OFFSET[1]
+
+          print("Received: " + str(data_array_printout))
           publish_data = Float64MultiArray()
           publish_data.data = convert_data_string(data)
           camera_pose_pub.publish(publish_data)

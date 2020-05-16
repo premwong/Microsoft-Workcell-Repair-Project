@@ -100,7 +100,7 @@
    </gazebo>
    <!-- Here we insert an iiwa7 robot in the scene, it's origin is just on top of the box previously defined. You can use 0,0,0 if you don't have that. -->
    <xacro:iiwa14 hardware_interface="$(arg hardware_interface)" robot_name="$(arg robot_name)" parent="world">
-      <origin xyz="0 1.5 0" rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
    </xacro:iiwa14>
    <!-- Tool properties -->
    <property name="tool_mass" value="1.00" />

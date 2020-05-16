@@ -39,7 +39,7 @@ def replace_nic(move_group):
 		rospy.sleep(2)
 		move_group.goto_component_position('nic')
 		move_group.set_gripper(True)
-		rospy.sleep(6)
+		rospy.sleep(2)
 		move_group.interpolated_trajectory(move_group.component_map['nic'].get_z_offset() - Z_OFFSET, 0.001)
 		rospy.sleep(2)
 		move_group.set_gripper(False)
@@ -62,11 +62,8 @@ def replace_heatsink(server, move_group):
 		return
 
 def test_replace(move_group):
-	move_group.goto_home_state()
-	rospy.sleep(6)
-	move_group.goto_cartesian_state(0.1, 0.7, 0.25, 0, 'nic')
-	rospy.sleep(3)
-	move_group.interpolated_trajectory(-0.16, 0.001)
+	move_group.goto_cartesian_state(0.1, 1, 0.3, 0, 'nic')
+
 
 def autostop_callback(camera_feed):
 	camera_feed_buffer = camera_feed.data
@@ -111,9 +108,6 @@ def main():
 		# pose = myLeftArm.query_pose()
 		# myLeftArm.check_ik_validity(pose)
 
-
-		
-		
 		# # myLeftArm.goto_fiducial_position()
 		# myLeftArm.goto_cartesian_state(0.1, 0.7, 0.25, -30, 'nic')
 		# rospy.sleep(4)

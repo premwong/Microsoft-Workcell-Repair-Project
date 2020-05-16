@@ -221,8 +221,10 @@ class MoveGroupLeftArm(object):
 
   def goto_joint_state(self, joint_vals, save_name=None):
     joint_goal = self.group.get_current_joint_values()
+    joint_goal_degrees = self.group.get_current_joint_values()
     for idx, joint in enumerate(joint_vals.tolist()):
       joint_goal[idx] = joint
+      joint_goal_degrees[idx] = math.degrees(joint)
     if save_name != None:
       self.group.set_joint_value_target(joint_goal)
       plan = self.group.plan()
@@ -230,6 +232,7 @@ class MoveGroupLeftArm(object):
       return plan
     else:
       start_time = time.time()
+      print 'joint goal %s' % joint_goal_degrees
       plan = self.group.go(joint_goal, wait=True)
       self.group.stop()
       print 'goto joint state%s'%self.group.get_current_pose().pose
@@ -268,16 +271,19 @@ class MoveGroupLeftArm(object):
       self.group.execute(loaded_plan[1])
 
   def interpolated_trajectory(self, travel_distance, step=0.004):
-    cur_pose = self.group.get_current_pose().pose
-    seed_state = self.group.get_current_joint_values()
-    cur_z = cur_pose.position.z
-    for i in range(0, int(abs(travel_distance) / step)):
-      self.goto_goal_state(cur_pose.position.x, cur_pose.position.y, cur_z,
-      [cur_pose.orientation.w, cur_pose.orientation.x, cur_pose.orientation.y, cur_pose.orientation.z],
-      seed_state)
-      cur_z += np.sign(travel_distance) * step
-      rospy.sleep(0.01)
-    return True
+    try:
+      cur_pose = self.group.get_current_pose().pose
+      seed_state = self.group.get_current_joint_values()
+      cur_z = cur_pose.position.z
+      for i in range(0, int(abs(travel_distance) / step)):
+        self.goto_goal_state(cur_pose.position.x, cur_pose.position.y, cur_z,
+        [cur_pose.orientation.w, cur_pose.orientation.x, cur_pose.orientation.y, cur_pose.orientation.z],
+        seed_state)
+        cur_z += np.sign(travel_distance) * step
+        rospy.sleep(0.01)
+      return True
+    except KeyboardInterrupt:
+      return
 
   def remove_path_constraints(self):
     print 'Constraint removed: ' + str(self.upright_constraints.orientation_constraints.pop())
