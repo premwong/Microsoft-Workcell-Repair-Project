@@ -45,7 +45,7 @@ def replace_nic(move_group):
 		move_group.set_gripper(False)
 		move_group.interpolated_trajectory(Z_OFFSET - move_group.component_map['nic'].get_z_offset(), 0.001)
 		move_group.goto_home_state()
-		move_group.set_gripper(True)
+		# move_group.set_gripper(True)
 	except rospy.ROSInterruptException:
 	  return
 	except KeyboardInterrupt:
@@ -62,8 +62,7 @@ def replace_heatsink(server, move_group):
 		return
 
 def test_replace(move_group):
-	move_group.goto_cartesian_state(0.1, 1, 0.3, 0, 'nic')
-
+	move_group.goto_cartesian_state(0.5, 0.2, 0.13, 0, 'nic', 90)
 
 def autostop_callback(camera_feed):
 	camera_feed_buffer = camera_feed.data
@@ -98,12 +97,15 @@ if CONVEYOR_ENABLE:
 def main():
 	try:
 		nic = Component('nic', NIC_OFFSET, NIC_SEED_STATE, NIC_ROTATION, (0.6, 0, 0))
+		nic_tray = Component('nic_tray', NIC_OFFSET, NIC_SEED_STATE, NIC_ROTATION, (0.6, 0, 0), angle_offset=90)
+		ram = Component('ram', NIC_OFFSET, RAM_SEED_STATE, RAM_ROTATION, (0.6, 0, 0))
 		heatsink = Component('heatsink1', HEATSINK_OFFSET, NIC_SEED_STATE, HEATSINK_ROTATION, (0.6, 0, 0), angle_offset=90)
 		hdd = Component('hdd1', HEATSINK_OFFSET, NIC_SEED_STATE, HDD_ROTATION, (0.6, 0, 0), angle_offset=90)
 		myLeftArm = MoveGroupLeftArm()
-		myLeftArm.load_component_map([nic, heatsink, hdd])
+		myLeftArm.load_component_map([nic, heatsink, hdd, ram, nic_tray])
 		myLeftArm.print_state()
-		test_replace(myLeftArm)
+		# myLeftArm.goto_home_state()
+		replace_nic(myLeftArm)
 
 		# pose = myLeftArm.query_pose()
 		# myLeftArm.check_ik_validity(pose)

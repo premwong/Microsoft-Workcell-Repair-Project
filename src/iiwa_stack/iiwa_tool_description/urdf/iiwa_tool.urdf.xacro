@@ -24,7 +24,7 @@
       </visual>
       <!-- camera visual -->
       <visual>
-         <origin xyz="-0.27 0.7 1.33" rpy="0 0 0" />
+         <origin xyz="-0.27 0.7 1.37" rpy="0 0 0" />
          <geometry>
             <box size="1 1.3 1" />
          </geometry>
@@ -32,7 +32,7 @@
       </visual>
       <!-- camera collision-->
       <collision>
-         <origin xyz="-0.27 0.7 1.33" rpy="0 0 0" />
+         <origin xyz="-0.27 0.7 1.37" rpy="0 0 0" />
          <geometry>
             <box size="1 1.3 1" />
          </geometry>
@@ -66,12 +66,28 @@
       </geometry>
     </collision> -->
       <!-- side panel object -->
-      <!-- <collision>
-         <origin xyz="0.14 -0.43 0.5" rpy="0 0 0" />
+      <!-- <visual>
+         <origin xyz="0.14 1.2 0.5" rpy="0 0 0" />
          <geometry>
             <box size="5 0.4 5" />
          </geometry>
-      </collision> -->
+      </visual> -->
+      <!-- tray object visual -->
+      <visual>
+         <origin xyz="0.45 0.05 0.043" rpy="0 0 0" />
+         <geometry>
+            <box size="0.35 0.5 .12" />
+         </geometry>
+         <material name="Grey" />
+      </visual>
+      <!-- tray object collision -->
+      <collision>
+         <origin xyz="0.45 0.05 0.043" rpy="0 0 0" />
+         <geometry>
+            <box size="0.35 0.5 .12" />
+         </geometry>
+         <material name="Grey" />
+      </collision>
       <!-- conveyor object visual -->
       <visual>
          <origin xyz="0.0 0.7 0.043" rpy="0 0 0" />
@@ -100,12 +116,12 @@
    </gazebo>
    <!-- Here we insert an iiwa7 robot in the scene, it's origin is just on top of the box previously defined. You can use 0,0,0 if you don't have that. -->
    <xacro:iiwa14 hardware_interface="$(arg hardware_interface)" robot_name="$(arg robot_name)" parent="world">
-      <origin xyz="0 1.5 0" rpy="0 0 0" />
+      <origin xyz="0 0 0" rpy="0 0 0" />
    </xacro:iiwa14>
    <!-- Tool properties -->
    <property name="tool_mass" value="1.00" />
    <property name="tool_joint_offset" value="0.00 0.00 0.00" />
-   <property name="tool_link_offset" value="0.00 0.00 0.23" />
+   <property name="tool_link_offset" value="0.00 0.00 0.25" />
    <!--  Here we define a dummy joint between the tip of the iiwa7 and the base of the tool. 
   There is no offset between the two, that means the tool is attached at the robot flange. -->
    <joint name="tool_joint" type="fixed">
@@ -120,7 +136,7 @@
          <origin xyz="0 0 0.12" rpy="0 0 0" />
          <geometry>
             <!-- <mesh filename="package://iiwa_tool_description/meshes/visual/tool.dae"/> -->
-            <cylinder length="0.24" radius="0.09" />
+            <cylinder length="0.25" radius="0.09" />
          </geometry>
          <material name="Grey" />
       </visual>
@@ -128,7 +144,7 @@
          <origin xyz="0 0 0.115" rpy="0 0 0" />
          <geometry>
             <!-- <mesh filename="package://iiwa_tool_description/meshes/visual/tool.dae"/> -->
-            <cylinder length="0.23" radius="0.09" />
+            <cylinder length="0.25" radius="0.09" />
          </geometry>
          <material name="Grey" />
       </collision>

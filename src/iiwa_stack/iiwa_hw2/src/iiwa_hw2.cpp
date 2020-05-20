@@ -30,7 +30,7 @@
 
 #include <pluginlib/class_list_macros.hpp>
 
-#include "iiwa_hw.hpp"
+#include "iiwa_hw2.hpp"
 #include <iiwa_ros/conversions.hpp>
 
 namespace iiwa_hw {
@@ -48,7 +48,7 @@ void HardwareInterface::setFrequency(double frequency) {
 bool HardwareInterface::init(ros::NodeHandle& /*unused*/, ros::NodeHandle &robot_hw_nh) {
 
   robot_hw_nh.param("hardware_interface", interface_, std::string("PositionJointInterface"));
-  robot_hw_nh.param("robot_name", robot_name_, std::string("iiwa"));
+  robot_hw_nh.param("robot_name", robot_name_, std::string("iiwa2"));
 
   // Initialize Publishers and Subscribers from iiwa_ros.
   joint_position_state_.init(robot_name_);
@@ -76,7 +76,7 @@ bool HardwareInterface::init(ros::NodeHandle& /*unused*/, ros::NodeHandle &robot
 
   // Create joint handles given the list.
   for (size_t i = 0; i < IIWA_JOINTS; ++i) {
-    ROS_INFO_STREAM("iiwa_hw.cpp Handling joint: " << device_->joint_names[i]);
+    ROS_INFO_STREAM("Hello Handling joint: " << device_->joint_names[i]);
 
     // Get current joint configuration.
     auto joint = urdf_model_.getJoint(device_->joint_names[i]);

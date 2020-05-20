@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<launch>
+    
+    <!-- LAUNCH INTERFACE -->
+    <arg name="hardware_interface" default="PositionJointInterface"/>
+    <arg name="robot_name" default="iiwa2"/>
+    
+    <!-- LAUNCH IMPLEMENTATION -->
+    <rosparam command="load" file="$(find iiwa_hw)/config/joint_names2.yaml" />
+    <!-- addresses /-->
+    <param name="interface" value="$(arg hardware_interface)"/>
+    
+    <!-- the real hardware interface /-->
+    <node name="iiwa_hw2" pkg="iiwa_hw2" type="iiwa_hw2-bin" respawn="false" output="screen"/>
+    
+</launch>

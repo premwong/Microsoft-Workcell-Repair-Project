@@ -51,11 +51,6 @@ class Component(object):
     y = (math.sin(theta) * self.component_a_offset) + (math.cos(theta) * self.component_b_offset)
     return x, y
 
-  #w, x, y, z-------------------
-    super(MoveGroupLeftArm, self).__init__()
-    moveit_commander.roscpp_initialize(sys.argv)
-    rospy.init_node('iiwa_move_to_ee_pose', anonymous=True)
-    self.robot = moveit_commander.RobotCommander()
   def convert_theta_to_quaternion(self, theta):
     cos_angle = math.cos(theta + math.radians(self.angle_offset))
     sin_angle = math.sin(theta + math.radians(self.angle_offset))
@@ -244,20 +239,20 @@ class MoveGroupLeftArm(object):
   def goto_home_state(self):
     self.goto_joint_state(HOME_STATE)
 
-  def goto_goal_state(self, x, y, z, quat, seed_state, radians=False, save_name=None):
+  def goto_goal_state(self, x, y, z, quat, seed_state, joint7_offset=0, radians=False, save_name=None):
     joint_goal = self.__inverse_kinematics([x, y, z], quat, seed_state)
     joint_list = joint_goal.tolist()
     joint_7 = joint_list[6]
-    joint_list[6] = joint_7 + math.radians(0)
+    joint_list[6] = joint_7 + math.radians(joint7_offset)
     print 'joint7%s'% math.degrees(joint_7)
     joint_goal = np.array(joint_list)
     return self.goto_joint_state(joint_goal, save_name)
 
   #For testing only. Do not use on final version
-  def goto_cartesian_state(self, goal_x, goal_y, goal_z, goal_theta, component_name='nic', radians=False):
+  def goto_cartesian_state(self, goal_x, goal_y, goal_z, goal_theta, component_name='nic', joint7_offset=0, radians=False):
     goal_quaternion = self.component_map[component_name].convert_theta_to_quaternion(math.radians(goal_theta))
     return self.goto_goal_state(goal_x, goal_y, goal_z, 
-      goal_quaternion, self.component_map[component_name].get_seed_state())
+      goal_quaternion, self.component_map[component_name].get_seed_state(), joint7_offset)
 
   def goto_cartesian_state_save(self, goal_x, goal_y, goal_z, goal_theta, plan_name='plan', component_name='nic'):
     goal_quaternion = self.component_map[component_name].convert_theta_to_quaternion(math.radians(goal_theta))
