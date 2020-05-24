@@ -6,16 +6,21 @@
 # subscribes to conveyor_done: to let the desktop know that the server has been repaired and is ready to go
 
 import rospy
-from iiwa_msgs.srv import BluetoothFlag
+from iiwa_msgs.srv import Bluetooth
 from bluetooth import *
 
 server_sock = None
 
 def callback(data):
     if data == "done":
-        server_sock.send(data)
-        receive_state = True
-        print("Waiting for next server.")
+        server_sock.send("done repairing server")
+
+        # wait for desktop to confirm that it is ready to receive the server
+        while(1):
+            data = client_sock.recv(1024)
+            if data.equals("ready"):
+                pub.publish("returning server")
+                break
 
 def setup_bluetooth():
     server_sock=BluetoothSocket( RFCOMM )
@@ -36,21 +41,20 @@ def setup_bluetooth():
 
 if __name__ == "__main__":
     rospy.init_node('bt_node', anonymous=True)
-    pub = rospy.Publisher('bl_ready', BluetoothFlag, queue_size=10)
-    rospy.Subscriber("conveyor_done", String, callback)
+    pub = rospy.Publisher('bt_ready', Bluetooth, queue_size=10)
+    rospy.Subscriber("user_done", String, callback)
     rate = rospy.Rate(10)
     setup_bluetooth()
 
     try:
         while not rospy.is_shutdown():
-            if receive_state:
-                data = client_sock.recv(1024)
-                if len(data) == 0: 
-                    break
-                else:
-                    print("received [%s]" % data)
-                    if (data == "start"):
-                        pub.publish(data)
+            data = client_sock.recv(1024)
+            if len(data) == 0: 
+                break
+            else:
+                print("received [%s]" % data)
+                if (data == "start"):
+                    pub.publish(data)
             rate.sleep()
     except IOError:
         print("IOError.")

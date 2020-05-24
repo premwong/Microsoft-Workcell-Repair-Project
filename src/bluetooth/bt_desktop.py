@@ -34,8 +34,11 @@ while True:
     else:
         data = sock.recv(1024)
         print("received [%s]" % data)
-        if data == "done":
+        if data == "done repairing server":
+            print("The workcell is finished repairing server, ready for conveyor to pass the server?")
+            print("Type: 'ready'")
+            sock.send(input())
             send_state = True
-            print("Work cell is done, ready for next server. Type 'start' when ready:")
+            print("Type 'start' to tell the workcell to go:")
 
 sock.close()

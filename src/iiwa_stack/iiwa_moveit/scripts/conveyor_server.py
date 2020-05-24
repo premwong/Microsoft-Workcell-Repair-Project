@@ -19,12 +19,6 @@ def handle_move_conveyor(req):
 		return 0
 	return 1
     
-# Need to make a MoveConveyor.srv
-# mkdir srv (if you dont have a srv dir)
-# In the file:
-# string command
-# ---
-# int32 status
 def move_conveyor_server():
 	rospy.init_node('conveyor_server')
 	service = rospy.Service('move_conveyor', MoveConveyor, handle_move_conveyor)
