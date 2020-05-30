@@ -185,6 +185,16 @@ class MoveGroupLeftArm(object):
       except rospy.ServiceException, e:
         print "Service call failed: %s"%e
 
+  def query_wrist_pose(self, query=True):
+    print("Waiting for wrist service...")
+    rospy.wait_for_service('collect_wrist')
+    if (query):
+      try:
+        collect_wrist = rospy.ServiceProxy('collect_wrist', CollectWrist)
+        return collect_wrist(1)
+      except rospy.ServiceException, e:
+        print("Service call failed: %s" %e)
+        
   def goto_fiducial_position(self):
     global current_theta
     response = self.query_pose()
