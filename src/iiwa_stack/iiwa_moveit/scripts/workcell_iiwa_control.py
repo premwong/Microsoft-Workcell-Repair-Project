@@ -51,11 +51,6 @@ class Component(object):
     y = (math.sin(theta) * self.component_a_offset) + (math.cos(theta) * self.component_b_offset)
     return x, y
 
-  #w, x, y, z-------------------
-    super(MoveGroupLeftArm, self).__init__()
-    moveit_commander.roscpp_initialize(sys.argv)
-    rospy.init_node('iiwa_move_to_ee_pose', anonymous=True)
-    self.robot = moveit_commander.RobotCommander()
   def convert_theta_to_quaternion(self, theta):
     cos_angle = math.cos(theta + math.radians(self.angle_offset))
     sin_angle = math.sin(theta + math.radians(self.angle_offset))
@@ -197,7 +192,7 @@ class MoveGroupLeftArm(object):
     return self.goto_goal_state(response.position_x + GLOBAL_OFFSET[0], response.position_y + GLOBAL_OFFSET[1], Z_OFFSET, 
     goal_quaternion, self.component_map['nic'].get_seed_state())
 
-  def goto_component_position(self, component_name, scale=1):
+  def goto_component_position(self, component_name, z_offset=Z_OFFSET, joint7_offset=0, scale=1):
     global current_theta
     response = self.query_pose() 
     print 'Pose collected.'
@@ -209,8 +204,8 @@ class MoveGroupLeftArm(object):
     goal_quaternion = self.component_map[component_name].convert_theta_to_quaternion(current_theta)
     goal_x = response.position_x + GLOBAL_OFFSET[0] + coord_offset[0]
     goal_y = response.position_y + GLOBAL_OFFSET[1] + coord_offset[1]
-    return self.goto_goal_state(goal_x, goal_y, Z_OFFSET, 
-      goal_quaternion, self.component_map[component_name].get_seed_state())
+    return self.goto_goal_state(goal_x, goal_y, z_offset, 
+      goal_quaternion, self.component_map[component_name].get_seed_state(), joint7_offset)
 
   def goto_component_tray(self, component_name):
     component = self.component_map[component_name]
@@ -221,8 +216,10 @@ class MoveGroupLeftArm(object):
 
   def goto_joint_state(self, joint_vals, save_name=None):
     joint_goal = self.group.get_current_joint_values()
+    joint_goal_degrees = self.group.get_current_joint_values()
     for idx, joint in enumerate(joint_vals.tolist()):
       joint_goal[idx] = joint
+      joint_goal_degrees[idx] = math.degrees(joint)
     if save_name != None:
       self.group.set_joint_value_target(joint_goal)
       plan = self.group.plan()
@@ -230,31 +227,35 @@ class MoveGroupLeftArm(object):
       return plan
     else:
       start_time = time.time()
+      print 'joint goal %s' % joint_goal_degrees
       plan = self.group.go(joint_goal, wait=True)
       self.group.stop()
       print 'goto joint state%s'%self.group.get_current_pose().pose
       end_time = time.time()
-      rospy.sleep((end_time - start_time) * 0.5)
+      rospy.sleep((end_time - start_time) * TIME_SCALE)
       print '----------------------'
       return plan
 
   def goto_home_state(self):
     self.goto_joint_state(HOME_STATE)
 
-  def goto_goal_state(self, x, y, z, quat, seed_state, radians=False, save_name=None):
+  def goto_goal_state(self, x, y, z, quat, seed_state, joint7_offset=0, radians=False, save_name=None):
     joint_goal = self.__inverse_kinematics([x, y, z], quat, seed_state)
     joint_list = joint_goal.tolist()
     joint_7 = joint_list[6]
-    joint_list[6] = joint_7 + math.radians(0)
+    if math.degrees(joint_7) + joint7_offset > 175:
+      joint_list[6] = math.radians(math.degrees(joint_7) + joint7_offset - 360)
+    else:
+      joint_list[6] = joint_7 + math.radians(joint7_offset)
     print 'joint7%s'% math.degrees(joint_7)
     joint_goal = np.array(joint_list)
     return self.goto_joint_state(joint_goal, save_name)
 
   #For testing only. Do not use on final version
-  def goto_cartesian_state(self, goal_x, goal_y, goal_z, goal_theta, component_name='nic', radians=False):
+  def goto_cartesian_state(self, goal_x, goal_y, goal_z, goal_theta, component_name='nic', joint7_offset=0, radians=False):
     goal_quaternion = self.component_map[component_name].convert_theta_to_quaternion(math.radians(goal_theta))
     return self.goto_goal_state(goal_x, goal_y, goal_z, 
-      goal_quaternion, self.component_map[component_name].get_seed_state())
+      goal_quaternion, self.component_map[component_name].get_seed_state(), joint7_offset)
 
   def goto_cartesian_state_save(self, goal_x, goal_y, goal_z, goal_theta, plan_name='plan', component_name='nic'):
     goal_quaternion = self.component_map[component_name].convert_theta_to_quaternion(math.radians(goal_theta))
@@ -268,16 +269,19 @@ class MoveGroupLeftArm(object):
       self.group.execute(loaded_plan[1])
 
   def interpolated_trajectory(self, travel_distance, step=0.004):
-    cur_pose = self.group.get_current_pose().pose
-    seed_state = self.group.get_current_joint_values()
-    cur_z = cur_pose.position.z
-    for i in range(0, int(abs(travel_distance) / step)):
-      self.goto_goal_state(cur_pose.position.x, cur_pose.position.y, cur_z,
-      [cur_pose.orientation.w, cur_pose.orientation.x, cur_pose.orientation.y, cur_pose.orientation.z],
-      seed_state)
-      cur_z += np.sign(travel_distance) * step
-      rospy.sleep(0.01)
-    return True
+    try:
+      cur_pose = self.group.get_current_pose().pose
+      seed_state = self.group.get_current_joint_values()
+      cur_z = cur_pose.position.z
+      for i in range(0, int(abs(travel_distance) / step)):
+        self.goto_goal_state(cur_pose.position.x, cur_pose.position.y, cur_z,
+        [cur_pose.orientation.w, cur_pose.orientation.x, cur_pose.orientation.y, cur_pose.orientation.z],
+        seed_state)
+        cur_z += np.sign(travel_distance) * step
+        rospy.sleep(0.01)
+      return True
+    except KeyboardInterrupt:
+      return
 
   def remove_path_constraints(self):
     print 'Constraint removed: ' + str(self.upright_constraints.orientation_constraints.pop())

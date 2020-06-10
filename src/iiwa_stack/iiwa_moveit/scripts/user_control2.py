@@ -112,6 +112,21 @@ def place_heatsink(move_group):
 	move_group.interpolated_trajectory(.01, 0.001)
 	move_group.goto_component_position('heatsink_place', z_offset=0.22)
 
+def test(move_group):
+	# move_group.goto_cartesian_state(0.45, 0.6, 0.48, 0, 'ram', joint7_offset=0)
+	move_group.set_gripper(True)
+	move_group.goto_cartesian_state(0.33, 0.77, 0.43, 0, 'ram')
+	move_group.goto_cartesian_state(0.14, 0.59, 0.43, 0, 'ram')
+	move_group.goto_cartesian_state(0.14, 0.59, 0.20, 0, 'ram')
+	# move_group.goto_component_position('ram', z_offset = 0.24)
+	# move_group.goto_component_position('ram', z_offset = 0.22)
+	move_group.interpolated_trajectory(-.012, 0.001)
+	move_group.set_gripper(False)
+	move_group.interpolated_trajectory(.012, 0.001)
+	
+	move_group.goto_cartesian_state(0.14, 0.6, 0.35, 0, 'ram')
+	rospy.sleep(0.2)
+	move_group.goto_cartesian_state(0.33, 0.77, 0.43, 0, 'ram')
 
 def autostop_callback(camera_feed):
 	global autostop_enable
@@ -147,7 +162,7 @@ def main():
 	try:
 		nic = Component('nic', NIC_OFFSET, HEATSINK_SEED_STATE, NIC_ROTATION, (0.6, 0, 0))
 		nic_tray = Component('nic_tray', (0,0,0), NIC_SEED_STATE, NIC_ROTATION, (0.6, 0, 0), angle_offset=90)
-		ram = Component('ram', NIC_OFFSET, RAM_SEED_STATE, RAM_ROTATION, (0.6, 0, 0))
+		ram = Component('ram', RAM_OFFSET, RAM_SEED_STATE, RAM_ROTATION, (0.6, 0, 0))
 
 		heatsink = Component('heatsink1', HEATSINK_OFFSET, HEATSINK_SEED_STATE, HEATSINK_ROTATION, (0.6, 0, 0), angle_offset=90)
 		heatsink_place = Component('heatsink_place', HEATSINK_PLACE_OFFSET, HEATSINK_SEED_STATE, HEATSINK_ROTATION, (0.6,0,0), angle_offset=90)
@@ -157,12 +172,7 @@ def main():
 		myLeftArm = MoveGroupLeftArm()
 		myLeftArm.load_component_map([nic, heatsink, hdd, ram, nic_tray, nic_bin, heatsink_bin, heatsink_place])
 		myLeftArm.print_state()
-		# move_conveyor("S")
-		pick_nic(myLeftArm)
-		place_nic(myLeftArm)
-		pick_heatsink(myLeftArm)
-		place_heatsink(myLeftArm)
-		pick_hdd(myLeftArm)
+		test(myLeftArm)
 		rospy.spin()
 
 	except rospy.ROSInterruptException:
