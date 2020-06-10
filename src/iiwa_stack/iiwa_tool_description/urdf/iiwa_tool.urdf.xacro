@@ -37,23 +37,30 @@
             <box size="1 1.3 1" />
          </geometry>
       </collision>
+      <!-- ceiling-->
+      <collision>
+         <origin xyz="-0.27 0.7 1.37" rpy="0 0 0" />
+         <geometry>
+            <box size="6 6 1" />
+         </geometry>
+      </collision>
       <!-- back panel object -->
       <collision>
-         <origin xyz="-0.94 0.25 0.5" rpy="0 0 0" />
+         <origin xyz="-0.99 0.25 0.5" rpy="0 0 0" />
          <geometry>
             <box size="1 4 4" />
          </geometry>
       </collision>
       <!-- front panel object -->
       <collision>
-         <origin xyz="0.7 0.25 0.5" rpy="0 0 0" />
+         <origin xyz="0.9 0.25 0.5" rpy="0 0 0" />
          <geometry>
             <box size="0.1 4 4" />
          </geometry>
       </collision>
       <!-- bottom panel object -->
       <collision>
-         <origin xyz="0.08 0.75 0.03" rpy="0 0 0" />
+         <origin xyz="0.08 0.75 0.01" rpy="0 0 0" />
          <geometry>
             <box size="1.3 2 0.1" />
          </geometry>
@@ -74,7 +81,7 @@
       </visual> -->
       <!-- tray object visual -->
       <visual>
-         <origin xyz="0.45 0.05 0.043" rpy="0 0 0" />
+         <origin xyz="0.45 0.05 0.003" rpy="0 0 0" />
          <geometry>
             <box size="0.35 0.5 .12" />
          </geometry>
@@ -82,23 +89,56 @@
       </visual>
       <!-- tray object collision -->
       <collision>
-         <origin xyz="0.45 0.05 0.043" rpy="0 0 0" />
+         <origin xyz="0.45 0.05 0.003" rpy="0 0 0" />
          <geometry>
             <box size="0.35 0.5 .12" />
          </geometry>
          <material name="Grey" />
       </collision>
+            <!-- conveyor motor visual -->
+      <!-- <visual>
+         <origin xyz="-0.25 0.24 0.06" rpy="0 0 0" />
+         <geometry>
+            <box size="0.40 0.20 .14" />
+         </geometry>
+         <material name="Grey" />
+      </visual> -->
+      <!-- conveyor motor collision -->
+      <!-- <collision>
+         <origin xyz="-0.25 0.24 0.06" rpy="0 0 0" />
+         <geometry>
+            <box size="0.40 0.20 .14" />
+         </geometry>
+         <material name="Grey" />
+      </collision> -->
       <!-- conveyor object visual -->
       <visual>
-         <origin xyz="0.0 0.7 0.043" rpy="0 0 0" />
+         <origin xyz="0.0 0.7 0.013" rpy="0 0 0" />
          <geometry>
             <box size="1.2 0.7 .127" />
          </geometry>
          <material name="Grey" />
       </visual>
+            <!-- tray table visual -->
+      <visual>
+         <origin xyz="-0 -0.5 -0.1" rpy="0 0 0" />
+         <geometry>
+            <box size="1.1 0.5 0.7" />
+         </geometry>
+         <material name="Grey" />
+      </visual>
+      <!-- tray table visual -->
+      <collision>
+         <origin xyz="-0 -0.5 -0.1" rpy="0 0 0" />
+         <geometry>
+            <box size="1.1 0.5 0.7" />
+         </geometry>
+         <material name="Grey" />
+      </collision>
+
       <!-- conveyor object collision -->
       <collision>
-         <origin xyz="0.0 0.7 0.043" rpy="0 0 0" />
+         <origin xyz="0.0 0.7 0.013" rpy="0 0 0" />
          <geometry>
             <box size="1.2 0.7 .127" />
          </geometry>
@@ -118,6 +158,7 @@
    <xacro:iiwa14 hardware_interface="$(arg hardware_interface)" robot_name="$(arg robot_name)" parent="world">
       <origin xyz="0 0 0" rpy="0 0 0" />
    </xacro:iiwa14>
+
    <!-- Tool properties -->
    <property name="tool_mass" value="1.00" />
    <property name="tool_joint_offset" value="0.00 0.00 0.00" />

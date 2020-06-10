@@ -192,7 +192,7 @@ class MoveGroupLeftArm(object):
     return self.goto_goal_state(response.position_x + GLOBAL_OFFSET[0], response.position_y + GLOBAL_OFFSET[1], Z_OFFSET, 
     goal_quaternion, self.component_map['nic'].get_seed_state())
 
-  def goto_component_position(self, component_name, scale=1):
+  def goto_component_position(self, component_name, z_offset=Z_OFFSET, joint7_offset=0, scale=1):
     global current_theta
     response = self.query_pose() 
     print 'Pose collected.'
@@ -204,8 +204,8 @@ class MoveGroupLeftArm(object):
     goal_quaternion = self.component_map[component_name].convert_theta_to_quaternion(current_theta)
     goal_x = response.position_x + GLOBAL_OFFSET[0] + coord_offset[0]
     goal_y = response.position_y + GLOBAL_OFFSET[1] + coord_offset[1]
-    return self.goto_goal_state(goal_x, goal_y, Z_OFFSET, 
-      goal_quaternion, self.component_map[component_name].get_seed_state())
+    return self.goto_goal_state(goal_x, goal_y, z_offset, 
+      goal_quaternion, self.component_map[component_name].get_seed_state(), joint7_offset)
 
   def goto_component_tray(self, component_name):
     component = self.component_map[component_name]
@@ -232,7 +232,7 @@ class MoveGroupLeftArm(object):
       self.group.stop()
       print 'goto joint state%s'%self.group.get_current_pose().pose
       end_time = time.time()
-      rospy.sleep((end_time - start_time) * 0.5)
+      rospy.sleep((end_time - start_time) * TIME_SCALE)
       print '----------------------'
       return plan
 
@@ -243,7 +243,10 @@ class MoveGroupLeftArm(object):
     joint_goal = self.__inverse_kinematics([x, y, z], quat, seed_state)
     joint_list = joint_goal.tolist()
     joint_7 = joint_list[6]
-    joint_list[6] = joint_7 + math.radians(joint7_offset)
+    if math.degrees(joint_7) + joint7_offset > 175:
+      joint_list[6] = math.radians(math.degrees(joint_7) + joint7_offset - 360)
+    else:
+      joint_list[6] = joint_7 + math.radians(joint7_offset)
     print 'joint7%s'% math.degrees(joint_7)
     joint_goal = np.array(joint_list)
     return self.goto_joint_state(joint_goal, save_name)

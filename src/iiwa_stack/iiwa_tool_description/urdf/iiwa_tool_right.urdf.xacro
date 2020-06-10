@@ -120,7 +120,7 @@
          <origin xyz="0 0 0.12" rpy="0 0 0" />
          <geometry>
             <!-- <mesh filename="package://iiwa_tool_description/meshes/visual/tool.dae"/> -->
-            <cylinder length="0.24" radius="0.09" />
+            <cylinder length="0.24" radius="0.06" />
          </geometry>
          <material name="Grey" />
       </visual>
@@ -128,7 +128,7 @@
          <origin xyz="0 0 0.115" rpy="0 0 0" />
          <geometry>
             <!-- <mesh filename="package://iiwa_tool_description/meshes/visual/tool.dae"/> -->
-            <cylinder length="0.23" radius="0.09" />
+            <cylinder length="0.23" radius="0.06" />
          </geometry>
          <material name="Grey" />
       </collision>
