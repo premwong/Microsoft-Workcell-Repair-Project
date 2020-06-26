@@ -6,6 +6,11 @@ Using iiwa_stack for iiwa integration: https://github.com/IFL-CAMP/iiwa_stack
 
 [You can follow video progress here](https://www.youtube.com/channel/UCuxifdvqcA12WCPKgT2MkxQ/videos)
 
+
+More info about the project below (we were was one of the departmental winners!):
+[More info] (https://tinyurl.com/yd6seu6v)
+
+
 ## Team:
 Wichwong Premvuti
 
